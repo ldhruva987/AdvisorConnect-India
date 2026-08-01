@@ -1,0 +1,28 @@
+server:
+  port: 7184
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:7432/booking_db
+    username: ${POSTGRES_USER:acadmin}
+    password: ${POSTGRES_PASSWORD:acpassword}
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+stripe:
+  secret-key: ${STRIPE_SECRET_KEY}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+
+logging:
+  level:
+    com.advisorconnect: INFO

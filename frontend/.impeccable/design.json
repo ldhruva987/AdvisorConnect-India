@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-17T15:27:28Z",
+  "title": "Design System: AdvisorConnect",
+  "extensions": {
+    "colorMeta": {
+      "oxblood": {
+        "role": "primary",
+        "displayName": "Oxblood",
+        "canonical": "oklch(0.42 0.15 8)",
+        "tonalRamp": ["oklch(0.92 0.03 8)", "oklch(0.75 0.10 8)", "oklch(0.55 0.14 8)", "oklch(0.42 0.15 8)", "oklch(0.34 0.13 8)"]
+      },
+      "oxblood-deep": {
+        "role": "primary-hover",
+        "displayName": "Oxblood Deep",
+        "canonical": "oklch(0.34 0.13 8)"
+      },
+      "pine": {
+        "role": "secondary",
+        "displayName": "Deep Pine",
+        "canonical": "oklch(0.38 0.12 155)",
+        "tonalRamp": ["oklch(0.94 0.03 155)", "oklch(0.75 0.09 155)", "oklch(0.55 0.11 155)", "oklch(0.38 0.12 155)", "oklch(0.28 0.10 155)"]
+      },
+      "pine-pale": {
+        "role": "secondary-pale",
+        "displayName": "Pine Pale",
+        "canonical": "oklch(0.94 0.03 155)"
+      },
+      "danger": {
+        "role": "danger",
+        "displayName": "Alert Red",
+        "canonical": "oklch(0.48 0.19 22)"
+      },
+      "danger-pale": {
+        "role": "danger-pale",
+        "displayName": "Danger Pale",
+        "canonical": "oklch(0.94 0.04 25)"
+      },
+      "warn-pale": {
+        "role": "warn-pale",
+        "displayName": "Warm Amber Pale",
+        "canonical": "oklch(0.88 0.09 75)"
+      },
+      "warn-ink": {
+        "role": "warn-text",
+        "displayName": "Warn Ink",
+        "canonical": "oklch(0.42 0.09 60)"
+      },
+      "bg": {
+        "role": "neutral-bg",
+        "displayName": "Paper White",
+        "canonical": "oklch(1.00 0.000 0)"
+      },
+      "surface": {
+        "role": "neutral-surface",
+        "displayName": "Surface Paper",
+        "canonical": "oklch(0.97 0.006 30)"
+      },
+      "border": {
+        "role": "neutral-border",
+        "displayName": "Hairline Border",
+        "canonical": "oklch(0.88 0.008 30)"
+      },
+      "ink": {
+        "role": "neutral-text",
+        "displayName": "Ink",
+        "canonical": "oklch(0.16 0.012 30)"
+      },
+      "muted": {
+        "role": "neutral-text-muted",
+        "displayName": "Muted",
+        "canonical": "oklch(0.50 0.008 30)"
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Landing page hero headline only." },
+      "headline": { "displayName": "Headline", "purpose": "Page-level titles across app pages." },
+      "title": { "displayName": "Title", "purpose": "Card, panel, and modal titles." },
+      "body": { "displayName": "Body", "purpose": "All paragraph and UI copy, capped at 65-75ch for prose." },
+      "label": { "displayName": "Label", "purpose": "Form labels, table headers, small metadata tags." }
+    },
+    "shadows": [
+      { "name": "overlay", "value": "0 12px 32px -8px rgba(18, 11, 10, 0.18)", "purpose": "Modals, dropdown menus, popovers, mobile nav sheet." },
+      { "name": "toast", "value": "0 8px 20px -4px rgba(18, 11, 10, 0.14)", "purpose": "Confirmation/error toasts only." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Default ease-out for hover/focus state transitions (ease-out-quint, no bounce)." },
+      { "name": "duration-fast", "value": "150ms", "purpose": "Color/border transitions on buttons, links, inputs." },
+      { "name": "duration-standard", "value": "220ms", "purpose": "Modal/overlay enter-exit, toast slide-in." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Default call-to-action button: sign up, book session, submit form.",
+      "html": "<button class=\"ds-btn-primary\">Book session</button>",
+      "css": ".ds-btn-primary { background: #8b173d; color: #ffffff; font-family: Inter, system-ui, sans-serif; font-weight: 600; font-size: 0.875rem; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; transition: background 150ms cubic-bezier(0.22,1,0.36,1); } .ds-btn-primary:hover { background: #6b1230; } .ds-btn-primary:focus-visible { outline: 2px solid #8b173d; outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }"
+    },
+    {
+      "name": "Verified Badge",
+      "kind": "chip",
+      "refersTo": "badge-verified",
+      "description": "Approved / verified / confirmed status pill.",
+      "html": "<span class=\"ds-badge-verified\">Verified</span>",
+      "css": ".ds-badge-verified { display: inline-flex; align-items: center; gap: 4px; background: #e3ede6; color: #005423; font-family: Inter, system-ui, sans-serif; font-weight: 600; font-size: 0.75rem; padding: 2px 10px; border-radius: 999px; }"
+    },
+    {
+      "name": "Advisor Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Standard card surface used for advisor listings, dashboard panels.",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">Card title</h3><p class=\"ds-card-body\">Supporting copy goes here.</p></div>",
+      "css": ".ds-card { background: #f9f4f3; border: 1px solid #ddd6d4; border-radius: 12px; padding: 20px; } .ds-card-title { font-family: 'Source Serif 4', Georgia, serif; font-weight: 500; font-size: 1.25rem; color: #120b0a; margin: 0 0 8px; } .ds-card-body { font-family: Inter, system-ui, sans-serif; font-size: 0.9375rem; line-height: 1.5; color: #686260; margin: 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Advisor's Ledger",
+    "overview": "AdvisorConnect should feel like sitting across from a senior advisor who has done this a thousand times and isn't trying to sell you anything: a private office with a ledger, ink on cotton paper, brass fittings, no gloss. Confidence is expressed through restraint and precision, not enthusiasm. This system explicitly rejects the generic navy/sky-blue/orange SaaS-fintech look the codebase shipped with, the warm cream AI-generated default, the black-and-gold luxury-banking cliche, and growth-hacky urgency patterns.",
+    "keyCharacteristics": [
+      "Paper-white and near-black ink carry the exacting read; oxblood and pine are sparing and meaningful.",
+      "Borders do the structural work; shadows are reserved for modals, dropdowns, and toasts.",
+      "Serif headlines over a neutral grotesque body (Inter).",
+      "Status must be readable at a glance across client, advisor, and admin surfaces."
+    ],
+    "rules": [
+      { "name": "The One Fill Rule", "body": "Oxblood and Pine each appear as a solid fill in exactly one context class. Everywhere else they show up as text, border, or icon color.", "section": "colors" },
+      { "name": "The Serif-Never-Shouts Rule", "body": "Source Serif 4 is used at 500 weight only, never bold, never above the display clamp ceiling.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. A shadow on anything still inside document flow is a bug, not a style choice.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Oxblood as a solid fill only for primary buttons, active nav state, and the user's own chat bubbles.",
+      "Do use Pine exclusively for verified/approved/confirmed states.",
+      "Do keep body text at Ink or Muted, never a paler gray.",
+      "Do use 1px hairline borders as the default separator.",
+      "Do reserve shadows for modals, dropdowns, popovers, and toasts only."
+    ],
+    "donts": [
+      "Don't revive the navy/sky-blue/orange-CTA palette or anything generic SaaS-fintech-blue.",
+      "Don't use a warm cream/beige/sand background.",
+      "Don't reach for a black-and-gold luxury-banking treatment.",
+      "Don't add countdown urgency, gradient hero text, or confetti to booking/financial flows.",
+      "Don't put a drop shadow on anything inside normal document flow.",
+      "Don't use Danger red and Oxblood interchangeably."
+    ]
+  }
+}

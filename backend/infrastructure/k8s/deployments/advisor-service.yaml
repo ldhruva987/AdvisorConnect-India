@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: advisor-service
+  namespace: advisorconnect-prod
+  labels:
+    app: advisor-service
+    app.kubernetes.io/part-of: advisorconnect
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: advisor-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: advisor-service
+    spec:
+      imagePullSecrets:
+        - name: ac-registry-secret
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: advisor-service
+          image: your-registry/ac-advisor-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - configMapRef:
+                name: ac-common-config
+            - configMapRef:
+                name: ac-advisor-service-config
+          env:
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ac-app-secrets
+                  key: POSTGRES_PASSWORD
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ac-app-secrets
+                  key: MINIO_SECRET_KEY
+          resources:
+            requests:
+              cpu: 150m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8083
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8083
+            initialDelaySeconds: 15
+            periodSeconds: 10

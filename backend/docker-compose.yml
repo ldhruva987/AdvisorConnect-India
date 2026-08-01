@@ -1,0 +1,458 @@
+version: "3.9"
+
+# ─── Networks ────────────────────────────────────────────────────────────────
+networks:
+  ac-net:
+    driver: bridge
+
+# ─── Volumes ─────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  cassandra_data:
+  redis_data:
+  kafka_data:
+  zookeeper_data:
+  minio_data:
+  maven_cache:       # shared Maven repo cache — speeds up all service builds
+
+# ─── Common env anchors ───────────────────────────────────────────────────────
+x-common-env: &common-env
+  SPRING_PROFILES_ACTIVE: docker
+  POSTGRES_HOST: postgres
+  POSTGRES_USER: acadmin
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-acpassword}
+  REDIS_HOST: redis
+  REDIS_PORT: "7379"
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-acredispass}
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+x-spring-healthcheck: &spring-healthcheck
+  interval: 20s
+  timeout: 10s
+  retries: 5
+  start_period: 60s
+
+# ─── Services ─────────────────────────────────────────────────────────────────
+services:
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # INFRASTRUCTURE
+  # ════════════════════════════════════════════════════════════════════════════
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ac-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: acadmin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-acpassword}
+      POSTGRES_MULTIPLE_DATABASES: auth_db,user_db,advisor_db,booking_db,admin_db,notification_db
+      PGPORT: "7432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgres/create-multiple-databases.sh:/docker-entrypoint-initdb.d/create-multiple-databases.sh
+    ports:
+      - "7432:7432"
+    networks:
+      - ac-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acadmin -p 7432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: ac-redis
+    restart: unless-stopped
+    command: redis-server --port 7379 --requirepass ${REDIS_PASSWORD:-acredispass} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "7379:7379"
+    networks:
+      - ac-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7379", "-a", "${REDIS_PASSWORD:-acredispass}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  cassandra:
+    image: cassandra:4.1
+    container_name: ac-cassandra
+    restart: unless-stopped
+    environment:
+      CASSANDRA_CLUSTER_NAME: ac-cluster
+      CASSANDRA_DC: dc1
+      CASSANDRA_RACK: rack1
+      HEAP_NEWSIZE: 128M
+      MAX_HEAP_SIZE: 512M
+    entrypoint: >
+      bash -c "
+        sed -i 's/^native_transport_port:.*/native_transport_port: 7942/' /etc/cassandra/cassandra.yaml &&
+        exec /usr/local/bin/docker-entrypoint.sh cassandra -f
+      "
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    ports:
+      - "7942:7942"
+    networks:
+      - ac-net
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe keyspaces' localhost 7942 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 90s
+
+  cassandra-init:
+    image: cassandra:4.1
+    container_name: ac-cassandra-init
+    restart: on-failure
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    volumes:
+      - ./scripts/cassandra/init.cql:/init.cql
+    entrypoint: ["cqlsh", "cassandra", "7942", "-f", "/init.cql"]
+    networks:
+      - ac-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: ac-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      # Enable ruok for healthcheck
+      KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=ruok,srvr,stat"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+    networks:
+      - ac-net
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep -q imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: ac-kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:7292
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:7292
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    ports:
+      - "7292:7292"
+    networks:
+      - ac-net
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: ac-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: advisorconnect
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      SERVER_PORT: "7190"
+    ports:
+      - "7190:7190"
+    networks:
+      - ac-net
+
+  minio:
+    image: minio/minio:latest
+    container_name: ac-minio
+    restart: unless-stopped
+    command: server /data --address ":7900" --console-address ":7901"
+    environment:
+      MINIO_ROOT_USER: acminiouser
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-acminiopassword}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "7900:7900"
+      - "7901:7901"
+    networks:
+      - ac-net
+    healthcheck:
+      test: ["CMD-SHELL", "mc alias set healthchk http://localhost:7900 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD >/dev/null 2>&1 && mc ready healthchk"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: ac-minio-init
+    restart: on-failure
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:7900 acminiouser ${MINIO_SECRET_KEY:-acminiopassword};
+        mc mb --ignore-existing local/advisor-documents;
+        mc mb --ignore-existing local/profile-assets;
+        mc anonymous set download local/profile-assets;
+        echo 'MinIO buckets ready';
+      "
+    networks:
+      - ac-net
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # BACKEND SERVICES
+  # ════════════════════════════════════════════════════════════════════════════
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+      args:
+        - MAVEN_CACHE=/root/.m2
+    container_name: ac-api-gateway
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      JWT_SECRET: ${JWT_SECRET:-local-dev-secret-change-in-production-32chars!!}
+    ports:
+      - "7180:7180"
+    networks:
+      - ac-net
+    volumes:
+      - maven_cache:/root/.m2
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7180/actuator/health || exit 1"]
+      <<: *spring-healthcheck
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    container_name: ac-auth-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      JWT_SECRET: ${JWT_SECRET:-local-dev-secret-change-in-production-32chars!!}
+    ports:
+      - "7181:7181"
+    networks:
+      - ac-net
+    volumes:
+      - maven_cache:/root/.m2
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7181/actuator/health || exit 1"]
+      <<: *spring-healthcheck
+
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    container_name: ac-user-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+    ports:
+      - "7182:7182"
+    networks:
+      - ac-net
+    volumes:
+      - maven_cache:/root/.m2
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7182/actuator/health || exit 1"]
+      <<: *spring-healthcheck
+
+  advisor-service:
+    build:
+      context: .
+      dockerfile: advisor-service/Dockerfile
+    container_name: ac-advisor-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      MINIO_ENDPOINT: http://minio:7900
+      MINIO_ACCESS_KEY: acminiouser
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-acminiopassword}
+      MINIO_BUCKET_DOCUMENTS: advisor-documents
+    ports:
+      - "7183:7183"
+    networks:
+      - ac-net
+    volumes:
+      - maven_cache:/root/.m2
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7183/actuator/health || exit 1"]
+      <<: *spring-healthcheck
+
+  chat-service:
+    build:
+      context: .
+      dockerfile: chat-service/Dockerfile
+    container_name: ac-chat-service
+    restart: unless-stopped
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      CASSANDRA_CONTACT_POINTS: cassandra
+      CASSANDRA_PORT: "7942"
+      CASSANDRA_KEYSPACE: chat_service
+      CASSANDRA_LOCAL_DC: datacenter1
+    ports:
+      - "7185:7185"
+    networks:
+      - ac-net
+    volumes:
+      - maven_cache:/root/.m2
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7185/actuator/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  booking-service:
+    build:
+      context: .
+      dockerfile: booking-service/Dockerfile
+    container_name: ac-booking-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    ports:
+      - "7184:7184"
+    networks:
+      - ac-net
+    volumes:
+      - maven_cache:/root/.m2
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7184/actuator/health || exit 1"]
+      <<: *spring-healthcheck
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    container_name: ac-notification-service
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://postgres:7432/notification_db
+      DB_USER: acadmin
+      DB_PASS: ${POSTGRES_PASSWORD:-acpassword}
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+      SPRING_MAIL_HOST: ${MAIL_HOST:-smtp.mailtrap.io}
+      SPRING_MAIL_PORT: ${MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${MAIL_USERNAME:-placeholder}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-placeholder}
+      MAIL_FROM: noreply@advisorconnect.io
+    ports:
+      - "7187:7187"
+    networks:
+      - ac-net
+    volumes:
+      - maven_cache:/root/.m2
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7187/actuator/health || exit 1"]
+      <<: *spring-healthcheck
+
+  admin-service:
+    build:
+      context: .
+      dockerfile: admin-service/Dockerfile
+    container_name: ac-admin-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+    ports:
+      - "7186:7186"
+    networks:
+      - ac-net
+    volumes:
+      - maven_cache:/root/.m2
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7186/actuator/health || exit 1"]
+      <<: *spring-healthcheck
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # FRONTEND
+  # ════════════════════════════════════════════════════════════════════════════
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: ac-frontend
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    ports:
+      - "7100:7100"
+    networks:
+      - ac-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7100/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

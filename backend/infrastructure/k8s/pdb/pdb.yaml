@@ -1,0 +1,69 @@
+# ─── PodDisruptionBudgets ─────────────────────────────────────────────────────
+# Ensures at least 1 pod stays alive during voluntary disruptions
+# (node drain, rolling upgrade, cluster maintenance).
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: advisorconnect-prod
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: auth-service-pdb
+  namespace: advisorconnect-prod
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: auth-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: advisor-service-pdb
+  namespace: advisorconnect-prod
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: advisor-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: chat-service-pdb
+  namespace: advisorconnect-prod
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: chat-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: booking-service-pdb
+  namespace: advisorconnect-prod
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: booking-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: advisorconnect-prod
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend

@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  /* ─── Fonts ─── */
+  --font-heading: "Source Serif 4", Georgia, serif;
+  --font-body:    "Inter", system-ui, sans-serif;
+
+  /* ─── Ink scale (warm near-black → paper). 400-950 all clear 4.5:1 on white. ─── */
+  --color-ink-950: #120b0a;
+  --color-ink-900: #201917;
+  --color-ink-800: #332c2b;
+  --color-ink-700: #48403f;
+  --color-ink-600: #5d5655;
+  --color-ink-500: #6b6463;
+  --color-ink-400: #797372;
+  --color-ink-300: #a9a3a2;
+  --color-ink-200: #ddd6d4;
+  --color-ink-100: #ece6e5;
+  --color-ink-50:  #f9f4f3;
+
+  /* ─── Oxblood (primary) ─── */
+  --color-oxblood-800: #63001f;
+  --color-oxblood-700: #6a072b;
+  --color-oxblood-600: #8b173d;
+  --color-oxblood-500: #b34862;
+  --color-oxblood-100: #f8dde1;
+  --color-oxblood-50:  #ffedef;
+
+  /* ─── Pine (verified / success) ─── */
+  --color-pine-700: #003610;
+  --color-pine-600: #005423;
+  --color-pine-500: #156f41;
+  --color-pine-100: #cde5d4;
+  --color-pine-50:  #dff0e4;
+
+  /* ─── Semantic ─── */
+  --color-danger-600: #b00727;
+  --color-danger-100: #ffe2de;
+  --color-warn-600:   #703f0e;
+  --color-warn-500:   #e49e22;
+  --color-warn-100:   #fbd094;
+}
+
+@layer base {
+  * { font-family: "Inter", system-ui, sans-serif; }
+  h1, h2, h3, h4, h5 { font-family: "Source Serif 4", Georgia, serif; font-weight: 500; }
+  body { @apply bg-white text-ink-950 antialiased; }
+  ::placeholder { color: var(--color-ink-600); opacity: 1; }
+}
+
+@layer components {
+  .msg-bubble-user {
+    @apply bg-oxblood-600 text-white;
+    border-radius: 18px 18px 4px 18px;
+  }
+  .msg-bubble-advisor {
+    @apply bg-ink-50 text-ink-950 border border-ink-200;
+    border-radius: 18px 18px 18px 4px;
+  }
+  .step-active   { @apply bg-oxblood-600 text-white; }
+  .step-done     { @apply bg-pine-600 text-white; }
+  .step-inactive { @apply bg-ink-100 text-ink-500; }
+  .card-hover    { @apply hover:border-oxblood-600 transition-colors duration-150 cursor-pointer; }
+  .btn-primary   { @apply bg-oxblood-600 text-white hover:bg-oxblood-700 font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed; }
+  .btn-verified  { @apply bg-pine-600 text-white hover:bg-pine-700 font-semibold transition-colors; }
+  .btn-outline   { @apply border border-ink-200 text-ink-950 hover:border-oxblood-600 hover:bg-oxblood-50 transition-colors; }
+  .input-base    { @apply w-full px-3.5 py-2.5 rounded-md border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-oxblood-600 focus:ring-offset-2 focus:border-ink-500 transition-all bg-white; }
+  .badge-pending  { @apply bg-warn-100 text-warn-600 font-semibold; }
+  .badge-approved { @apply bg-pine-50 text-pine-600 font-semibold; }
+  .badge-rejected { @apply bg-danger-100 text-danger-600 font-semibold; }
+  .shadow-overlay { box-shadow: 0 12px 32px -8px rgba(18, 11, 10, 0.18); }
+  .shadow-toast   { box-shadow: 0 8px 20px -4px rgba(18, 11, 10, 0.14); }
+}

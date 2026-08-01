@@ -1,0 +1,28 @@
+server:
+  port: 7181
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:7432/auth_db
+    username: ${POSTGRES_USER:acadmin}
+    password: ${POSTGRES_PASSWORD:acpassword}
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:7379}
+      password: ${REDIS_PASSWORD:acredispass}
+
+jwt:
+  secret: ${JWT_SECRET}
+
+logging:
+  level:
+    com.advisorconnect: INFO
+    org.springframework.security: WARN

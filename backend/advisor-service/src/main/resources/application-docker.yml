@@ -1,0 +1,30 @@
+server:
+  port: 7183
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:7432/advisor_db
+    username: ${POSTGRES_USER:acadmin}
+    password: ${POSTGRES_PASSWORD:acpassword}
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://minio:7900}
+  access-key: ${MINIO_ACCESS_KEY:acminiouser}
+  secret-key: ${MINIO_SECRET_KEY:acminiopassword}
+  bucket-documents: ${MINIO_BUCKET_DOCUMENTS:advisor-documents}
+
+logging:
+  level:
+    com.advisorconnect: INFO

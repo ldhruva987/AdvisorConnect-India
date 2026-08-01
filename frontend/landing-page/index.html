@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AdvisorConnect — Free Expert Advice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { heading: ['Poppins','sans-serif'], body: ['Inter','sans-serif'] },
+      colors: {
+        navy: { 950:'#020617', 900:'#0F172A', 800:'#1E293B', 700:'#334155', 600:'#475569', 400:'#94A3B8', 200:'#E2E8F0', 100:'#F1F5F9', 50:'#F8FAFC' },
+        brand: { 700:'#0369A1', 600:'#0284C7', 500:'#0EA5E9', 100:'#E0F2FE', 50:'#F0F9FF' },
+        cta: { 600:'#EA6C10', 500:'#F97316', 100:'#FFEDD5' },
+        success: { 600:'#059669', 100:'#D1FAE5' },
+        danger: { 600:'#DC2626', 100:'#FEE2E2' },
+        warn: { 500:'#F59E0B', 100:'#FEF3C7' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Inter', sans-serif; }
+  h1,h2,h3,h4,h5 { font-family: 'Poppins', sans-serif; }
+  [x-cloak] { display: none !important; }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .msg-bubble-user { background: #0369A1; color: #fff; border-radius: 18px 18px 4px 18px; }
+  .msg-bubble-advisor { background: #F1F5F9; color: #0F172A; border-radius: 18px 18px 18px 4px; }
+  .step-active { background: #0369A1; color: #fff; }
+  .step-done { background: #059669; color: #fff; }
+  .step-inactive { background: #E2E8F0; color: #64748B; }
+</style>
+</head>
+<body class="bg-navy-50 text-navy-900" x-data="App()" x-cloak>
+
+<!-- ═══════════════════════════════════ NAV ═══════════════════════════════════ -->
+<nav class="fixed top-0 w-full z-50 bg-white border-b border-navy-200 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-16">
+    <button @click="go('landing')" class="flex items-center gap-2">
+      <div class="w-8 h-8 bg-brand-700 rounded-lg flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
+      </div>
+      <span class="font-heading font-700 text-navy-900 text-lg">AdvisorConnect</span>
+    </button>
+    <div class="hidden md:flex items-center gap-6 text-sm font-medium text-navy-600">
+      <button @click="go('explore')" class="hover:text-brand-700 transition-colors">Explore Advisors</button>
+      <button @click="go('onboarding')" class="hover:text-brand-700 transition-colors">Become an Advisor</button>
+      <button @click="go('admin-dashboard')" class="hover:text-brand-700 transition-colors">Admin</button>
+    </div>
+    <div class="flex items-center gap-3">
+      <button @click="go('login')" class="text-sm font-medium text-navy-700 hover:text-brand-700 transition-colors px-3 py-1.5">Log in</button>
+      <button @click="go('register')" class="text-sm font-semibold bg-brand-700 text-white px-4 py-2 rounded-lg hover:bg-brand-600 transition-colors">Sign up free</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════ SCREENS ═══════════════════════════════════ -->
+<div class="pt-16 min-h-screen">
+
+<!-- ───────────────────── LANDING ───────────────────── -->
+<div x-show="screen==='landing'">
+  <!-- Hero -->
+  <section class="bg-navy-900 text-white relative overflow-hidden">
+    <div class="absolute inset-0 opacity-10" style="background:radial-gradient(ellipse at 70% 50%,#0EA5E9 0%,transparent 60%)"></div>
+    <div class="max-w-7xl mx-auto px-6 py-20 md:py-28 relative z-10">
+      <div class="max-w-2xl">
+        <div class="inline-flex items-center gap-2 bg-brand-700 bg-opacity-20 border border-brand-500 border-opacity-30 rounded-full px-4 py-1.5 mb-6">
+          <div class="w-2 h-2 bg-success-600 rounded-full animate-pulse"></div>
+          <span class="text-sm text-brand-500 font-medium">1,200+ verified advisors online now</span>
+        </div>
+        <h1 class="font-heading text-4xl md:text-6xl font-bold leading-tight mb-6">
+          Real Experts.<br>
+          <span class="text-brand-500">Free Advice.</span><br>
+          Always Private.
+        </h1>
+        <p class="text-lg text-navy-400 mb-8 leading-relaxed">Chat for free with verified professionals in career, relationships, finance &amp; mental health — or book a private video session when you're ready to go deeper.</p>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <button @click="go('explore')" class="bg-cta-500 hover:bg-cta-600 text-white font-semibold px-8 py-3.5 rounded-xl text-base transition-all hover:shadow-lg">Start Free Chat</button>
+          <button @click="go('onboarding')" class="border border-white border-opacity-30 hover:border-opacity-60 text-white font-medium px-8 py-3.5 rounded-xl text-base transition-all">Become an Advisor</button>
+        </div>
+        <div class="flex items-center gap-4 mt-8">
+          <div class="flex -space-x-2">
+            <template x-for="c in ['#0369A1','#059669','#7C3AED','#DC2626','#F97316']">
+              <div class="w-9 h-9 rounded-full border-2 border-navy-900 flex items-center justify-center text-white text-xs font-bold" :style="`background:${c}`">A</div>
+            </template>
+          </div>
+          <div class="text-sm text-navy-400"><span class="text-white font-semibold">4.9★</span> from 28,000+ sessions</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Category pills -->
+  <section class="bg-white border-b border-navy-200 py-5">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="flex flex-wrap gap-3">
+        <template x-for="cat in categories">
+          <button @click="go('explore')" class="flex items-center gap-2 px-4 py-2.5 rounded-full border border-navy-200 hover:border-brand-700 hover:bg-brand-50 text-sm font-medium text-navy-700 hover:text-brand-700 transition-all">
+            <span x-text="cat.icon"></span><span x-text="cat.name"></span>
+            <span class="bg-navy-100 text-navy-600 text-xs px-2 py-0.5 rounded-full" x-text="cat.count"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="py-20 bg-navy-50">
+    <div class="max-w-5xl mx-auto px-6 text-center">
+      <h2 class="font-heading text-3xl font-bold text-navy-900 mb-3">How AdvisorConnect Works</h2>
+      <p class="text-navy-600 mb-14">Three simple steps to get the help you deserve</p>
+      <div class="grid md:grid-cols-3 gap-8">
+        <template x-for="step in howItWorks">
+          <div class="bg-white rounded-2xl p-8 shadow-sm border border-navy-200 relative">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-4 mx-auto text-2xl" :style="`background:${step.bg}`" x-text="step.icon"></div>
+            <div class="absolute top-4 right-4 text-4xl font-heading font-bold text-navy-100" x-text="step.num"></div>
+            <h3 class="font-heading font-semibold text-lg text-navy-900 mb-2" x-text="step.title"></h3>
+            <p class="text-sm text-navy-600 leading-relaxed" x-text="step.desc"></p>
+          </div>
+        </template>
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured Advisors -->
+  <section class="py-20 bg-white">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="flex items-end justify-between mb-10">
+        <div>
+          <h2 class="font-heading text-3xl font-bold text-navy-900 mb-2">Top Advisors This Week</h2>
+          <p class="text-navy-600">Verified professionals, real credentials, anonymous to you</p>
+        </div>
+        <button @click="go('explore')" class="text-brand-700 font-semibold text-sm hover:underline">View all →</button>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <template x-for="adv in featuredAdvisors">
+          <div @click="go('advisor-profile')" class="bg-white border border-navy-200 rounded-2xl p-5 hover:shadow-md hover:border-brand-700 cursor-pointer transition-all group">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-bold flex-shrink-0" :style="`background:${adv.color}`" x-text="adv.initials"></div>
+              <div class="min-w-0">
+                <div class="font-semibold text-navy-900 text-sm truncate" x-text="adv.username"></div>
+                <div class="text-xs text-navy-500 truncate" x-text="adv.title"></div>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-1 mb-3">
+              <template x-for="tag in adv.tags">
+                <span class="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full" x-text="tag"></span>
+              </template>
+            </div>
+            <div class="flex items-center justify-between text-xs text-navy-500">
+              <span>⭐ <span x-text="adv.rating"></span> (<span x-text="adv.reviews"></span>)</span>
+              <span class="bg-success-100 text-success-600 font-semibold px-2 py-0.5 rounded-full">Free chat</span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section class="py-20 bg-navy-50">
+    <div class="max-w-4xl mx-auto px-6 text-center">
+      <h2 class="font-heading text-3xl font-bold text-navy-900 mb-3">Simple, Transparent Pricing</h2>
+      <p class="text-navy-600 mb-12">Chat is always free. Pay only for video consultations.</p>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-2xl p-8 border border-navy-200 shadow-sm text-left">
+          <div class="text-3xl mb-3">💬</div>
+          <h3 class="font-heading text-xl font-bold text-navy-900 mb-1">Free Chat</h3>
+          <div class="text-4xl font-heading font-bold text-navy-900 my-4">$0 <span class="text-base font-normal text-navy-500">forever</span></div>
+          <ul class="space-y-3 text-sm text-navy-700 mb-6">
+            <template x-for="f in freeFeatures">
+              <li class="flex items-center gap-2"><svg class="w-4 h-4 text-success-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg><span x-text="f"></span></li>
+            </template>
+          </ul>
+          <button @click="go('explore')" class="w-full py-3 bg-navy-100 text-navy-800 rounded-xl font-semibold hover:bg-navy-200 transition-colors">Start chatting free</button>
+        </div>
+        <div class="bg-navy-900 rounded-2xl p-8 border border-brand-700 shadow-lg text-left relative overflow-hidden">
+          <div class="absolute top-4 right-4 bg-cta-500 text-white text-xs font-bold px-3 py-1 rounded-full">POPULAR</div>
+          <div class="absolute inset-0 opacity-10" style="background:radial-gradient(ellipse at 80% 20%,#0EA5E9,transparent 50%)"></div>
+          <div class="relative z-10">
+            <div class="text-3xl mb-3">📹</div>
+            <h3 class="font-heading text-xl font-bold text-white mb-1">Video Session</h3>
+            <div class="text-4xl font-heading font-bold text-white my-4">$39 <span class="text-base font-normal text-navy-400">/ 30 min</span></div>
+            <ul class="space-y-3 text-sm text-navy-300 mb-6">
+              <template x-for="f in paidFeatures">
+                <li class="flex items-center gap-2"><svg class="w-4 h-4 text-brand-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg><span x-text="f"></span></li>
+              </template>
+            </ul>
+            <button @click="go('booking')" class="w-full py-3 bg-cta-500 text-white rounded-xl font-semibold hover:bg-cta-600 transition-colors">Book a video session</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials -->
+  <section class="py-20 bg-white">
+    <div class="max-w-5xl mx-auto px-6">
+      <h2 class="font-heading text-3xl font-bold text-navy-900 text-center mb-12">What People Are Saying</h2>
+      <div class="grid md:grid-cols-3 gap-6">
+        <template x-for="t in testimonials">
+          <div class="bg-navy-50 rounded-2xl p-6 border border-navy-200">
+            <div class="flex items-center gap-1 mb-3">
+              <template x-for="s in 5"><span class="text-warn-500 text-sm">★</span></template>
+            </div>
+            <p class="text-navy-700 text-sm leading-relaxed mb-4" x-text="`"${t.text}"`"></p>
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold" :style="`background:${t.color}`" x-text="t.initials"></div>
+              <div>
+                <div class="text-sm font-semibold text-navy-900" x-text="t.name"></div>
+                <div class="text-xs text-navy-500" x-text="t.sector"></div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Banner -->
+  <section class="bg-brand-700 py-16">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <h2 class="font-heading text-3xl font-bold text-white mb-4">Ready to talk to an expert?</h2>
+      <p class="text-brand-100 mb-8">No registration required to browse. Sign up in 30 seconds to start chatting.</p>
+      <button @click="go('explore')" class="bg-white text-brand-700 font-bold px-10 py-4 rounded-xl text-lg hover:bg-brand-50 transition-colors shadow-md">Browse Free Advisors</button>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-navy-900 text-navy-400 py-12">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="font-heading font-bold text-white text-lg">AdvisorConnect</div>
+        <div class="text-sm">© 2026 AdvisorConnect. All rights reserved. Your privacy is our priority.</div>
+        <div class="flex gap-5 text-sm">
+          <a href="#" class="hover:text-white">Privacy</a>
+          <a href="#" class="hover:text-white">Terms</a>
+          <a href="#" class="hover:text-white">Support</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+</div>
+<!-- END LANDING -->
+
+<!-- ───────────────────── LOGIN ───────────────────── -->
+<div x-show="screen==='login'" class="min-h-screen bg-navy-50 flex items-center justify-center px-4 py-16">
+  <div class="bg-white rounded-2xl shadow-xl border border-navy-200 w-full max-w-md p-8">
+    <div class="text-center mb-8">
+      <div class="w-12 h-12 bg-brand-700 rounded-xl flex items-center justify-center mx-auto mb-4">
+        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
+      </div>
+      <h2 class="font-heading text-2xl font-bold text-navy-900">Welcome back</h2>
+      <p class="text-navy-500 text-sm mt-1">Sign in to your AdvisorConnect account</p>
+    </div>
+    <form @submit.prevent="go('explore')" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-navy-700 mb-1.5">Email address</label>
+        <input type="email" placeholder="you@example.com" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 focus:border-transparent transition-all">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-navy-700 mb-1.5">Password</label>
+        <input type="password" placeholder="••••••••" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 focus:border-transparent transition-all">
+        <div class="text-right mt-1.5"><a href="#" class="text-xs text-brand-700 hover:underline">Forgot password?</a></div>
+      </div>
+      <button type="submit" class="w-full bg-brand-700 text-white py-3 rounded-xl font-semibold text-sm hover:bg-brand-600 transition-colors mt-2">Sign in</button>
+    </form>
+    <div class="mt-6 text-center text-sm text-navy-500">Don't have an account? <button @click="go('register')" class="text-brand-700 font-semibold hover:underline">Sign up free</button></div>
+    <div class="mt-3 text-center"><button @click="go('admin-dashboard')" class="text-xs text-navy-400 hover:text-navy-600 underline">Admin login →</button></div>
+  </div>
+</div>
+
+<!-- ───────────────────── REGISTER ───────────────────── -->
+<div x-show="screen==='register'" class="min-h-screen bg-navy-50 flex items-center justify-center px-4 py-16">
+  <div class="bg-white rounded-2xl shadow-xl border border-navy-200 w-full max-w-md p-8">
+    <div class="text-center mb-6">
+      <h2 class="font-heading text-2xl font-bold text-navy-900">Create your account</h2>
+      <p class="text-navy-500 text-sm mt-1">Free forever — no credit card needed</p>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mb-6">
+      <button @click="userType='user'" :class="userType==='user' ? 'border-brand-700 bg-brand-50 text-brand-700' : 'border-navy-200 text-navy-600'" class="border-2 rounded-xl p-4 text-center transition-all cursor-pointer">
+        <div class="text-2xl mb-1">👤</div><div class="text-sm font-semibold">Seeking Advice</div><div class="text-xs text-navy-500 mt-0.5">Get help from experts</div>
+      </button>
+      <button @click="userType='advisor'; go('onboarding')" class="border-2 border-navy-200 text-navy-600 rounded-xl p-4 text-center transition-all cursor-pointer hover:border-brand-700 hover:text-brand-700">
+        <div class="text-2xl mb-1">🎓</div><div class="text-sm font-semibold">I'm an Advisor</div><div class="text-xs text-navy-500 mt-0.5">Share your expertise</div>
+      </button>
+    </div>
+    <form @submit.prevent="go('explore')" class="space-y-4">
+      <input type="email" placeholder="Email address" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+      <input type="password" placeholder="Create password (8+ characters)" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+      <button type="submit" class="w-full bg-cta-500 text-white py-3 rounded-xl font-semibold text-sm hover:bg-cta-600 transition-colors">Create free account</button>
+    </form>
+    <p class="text-xs text-navy-400 text-center mt-4">By signing up you agree to our <a href="#" class="underline">Terms</a> and <a href="#" class="underline">Privacy Policy</a></p>
+    <div class="mt-4 text-center text-sm text-navy-500">Already have an account? <button @click="go('login')" class="text-brand-700 font-semibold hover:underline">Sign in</button></div>
+  </div>
+</div>
+
+<!-- ───────────────────── EXPLORE ───────────────────── -->
+<div x-show="screen==='explore'" class="max-w-7xl mx-auto px-4 py-8">
+  <div class="mb-6">
+    <h1 class="font-heading text-2xl font-bold text-navy-900 mb-4">Find an Advisor</h1>
+    <div class="flex flex-col sm:flex-row gap-3 mb-3">
+      <div class="flex-1 relative">
+        <svg class="absolute left-3 top-3 w-5 h-5 text-navy-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" placeholder="Search by name, topic, or keyword..." class="w-full pl-10 pr-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all bg-white">
+      </div>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <template x-for="cat in categories">
+        <button @click="activeCategory=(activeCategory===cat.name?'':cat.name)"
+          :class="activeCategory===cat.name?'bg-brand-700 text-white border-brand-700':'bg-white text-navy-600 border-navy-200 hover:border-brand-700'"
+          class="px-4 py-2 rounded-full border text-sm font-medium transition-all whitespace-nowrap">
+          <span x-text="cat.icon+' '+cat.name"></span>
+        </button>
+      </template>
+    </div>
+  </div>
+  <div class="flex items-center justify-between mb-4">
+    <p class="text-sm text-navy-500"><span class="font-semibold text-navy-800">248</span> advisors available</p>
+    <select class="text-sm border border-navy-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-700 bg-white">
+      <option>Best match</option><option>Top rated</option><option>Most reviews</option>
+    </select>
+  </div>
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+    <template x-for="adv in allAdvisors">
+      <div @click="go('advisor-profile')" class="bg-white border border-navy-200 rounded-2xl p-5 hover:shadow-lg hover:border-brand-700 cursor-pointer transition-all relative">
+        <div x-show="adv.online" class="absolute top-4 right-4 w-2.5 h-2.5 bg-success-600 rounded-full ring-2 ring-white"></div>
+        <div class="flex items-start gap-3 mb-3">
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0" :style="`background:${adv.color}`" x-text="adv.initials"></div>
+          <div class="min-w-0 flex-1">
+            <div class="font-semibold text-navy-900 text-sm" x-text="adv.username"></div>
+            <div class="text-xs text-navy-500 truncate" x-text="adv.title"></div>
+            <div class="flex items-center gap-1 mt-1">
+              <span class="text-warn-500 text-xs">★</span>
+              <span class="text-xs font-semibold text-navy-800" x-text="adv.rating"></span>
+              <span class="text-xs text-navy-400" x-text="`(${adv.reviews})`"></span>
+            </div>
+          </div>
+        </div>
+        <p class="text-xs text-navy-600 leading-relaxed mb-3 line-clamp-2" x-text="adv.bio"></p>
+        <div class="flex flex-wrap gap-1 mb-4">
+          <template x-for="tag in adv.tags">
+            <span class="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full border border-brand-100" x-text="tag"></span>
+          </template>
+        </div>
+        <div class="flex gap-2">
+          <button @click.stop="go('chat')" class="flex-1 py-2 text-xs font-semibold bg-brand-50 text-brand-700 rounded-lg hover:bg-brand-100 transition-colors border border-brand-100">Free Chat</button>
+          <button @click.stop="go('booking')" class="flex-1 py-2 text-xs font-semibold bg-cta-500 text-white rounded-lg hover:bg-cta-600 transition-colors">Book Video</button>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- ───────────────────── ADVISOR PROFILE ───────────────────── -->
+<div x-show="screen==='advisor-profile'" class="max-w-4xl mx-auto px-4 py-8">
+  <button @click="go('explore')" class="flex items-center gap-2 text-sm text-navy-500 hover:text-navy-800 mb-6 transition-colors">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back to advisors
+  </button>
+  <div class="bg-white rounded-2xl border border-navy-200 overflow-hidden shadow-sm">
+    <div class="h-32 bg-gradient-to-r from-navy-900 to-brand-700"></div>
+    <div class="px-6 pb-6">
+      <div class="flex items-end justify-between -mt-10 mb-4">
+        <div class="w-20 h-20 rounded-2xl bg-brand-700 border-4 border-white flex items-center justify-center text-white text-2xl font-bold shadow-md">MR</div>
+        <div class="flex gap-2 mt-12">
+          <button @click="go('chat')" class="px-5 py-2.5 bg-brand-700 text-white text-sm font-semibold rounded-xl hover:bg-brand-600 transition-colors">Free Chat</button>
+          <button @click="go('booking')" class="px-5 py-2.5 bg-cta-500 text-white text-sm font-semibold rounded-xl hover:bg-cta-600 transition-colors">Book Video — $39</button>
+        </div>
+      </div>
+      <div class="mb-4">
+        <div class="flex items-center gap-2 mb-1">
+          <h2 class="font-heading text-xl font-bold text-navy-900">@MindfulRohan</h2>
+          <span class="inline-flex items-center gap-1 bg-success-100 text-success-600 text-xs font-semibold px-2 py-0.5 rounded-full">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+            Verified
+          </span>
+        </div>
+        <p class="text-navy-500 text-sm">Licensed Clinical Psychologist · Mental Health &amp; Relationships</p>
+      </div>
+      <div class="flex gap-6 mb-6 pb-6 border-b border-navy-100">
+        <div class="text-center"><div class="font-heading font-bold text-xl text-navy-900">4.9</div><div class="text-xs text-navy-500">Rating</div></div>
+        <div class="text-center"><div class="font-heading font-bold text-xl text-navy-900">1.2k</div><div class="text-xs text-navy-500">Chats</div></div>
+        <div class="text-center"><div class="font-heading font-bold text-xl text-navy-900">342</div><div class="text-xs text-navy-500">Reviews</div></div>
+        <div class="text-center"><div class="font-heading font-bold text-xl text-navy-900">&lt;5m</div><div class="text-xs text-navy-500">Response</div></div>
+        <div class="text-center"><div class="font-heading font-bold text-xl text-navy-900">8yr</div><div class="text-xs text-navy-500">Experience</div></div>
+      </div>
+      <div class="flex flex-wrap gap-2 mb-6">
+        <template x-for="tag in ['Anxiety','Depression','Relationships','CBT','Mindfulness','Career Stress','Grief']">
+          <span class="text-sm bg-brand-50 text-brand-700 px-3 py-1 rounded-full border border-brand-100" x-text="tag"></span>
+        </template>
+      </div>
+      <div class="mb-6">
+        <h3 class="font-heading font-semibold text-navy-900 mb-2">About</h3>
+        <p class="text-sm text-navy-600 leading-relaxed">I'm a licensed clinical psychologist with 8 years of experience helping people navigate anxiety, depression, relationship challenges, and career stress. My approach combines CBT with mindfulness techniques tailored to your unique situation.</p>
+      </div>
+      <div class="mb-6">
+        <h3 class="font-heading font-semibold text-navy-900 mb-3">Credentials <span class="text-xs font-normal text-navy-400 ml-1">(real details kept private — admin verified)</span></h3>
+        <div class="space-y-2">
+          <div class="flex items-center gap-3 p-3 bg-success-100 rounded-xl border border-success-600 border-opacity-20">
+            <svg class="w-5 h-5 text-success-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            <div><div class="text-sm font-semibold text-navy-800">PhD Clinical Psychology — Admin Verified</div><div class="text-xs text-navy-500 blur-sm select-none">University Name · 2016</div></div>
+          </div>
+          <div class="flex items-center gap-3 p-3 bg-navy-50 rounded-xl border border-navy-200">
+            <svg class="w-5 h-5 text-brand-700 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+            <div><div class="text-sm font-semibold text-navy-800">Licensed Psychologist — Admin Verified</div><div class="text-xs text-navy-500 blur-sm select-none">License Board · State License #XXXX</div></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 class="font-heading font-semibold text-navy-900 mb-3">Recent Reviews</h3>
+        <div class="space-y-3">
+          <template x-for="r in advisorReviews">
+            <div class="p-4 bg-navy-50 rounded-xl border border-navy-200">
+              <div class="flex items-center gap-2 mb-2">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" :style="`background:${r.color}`" x-text="r.initials"></div>
+                <span class="text-sm font-medium text-navy-800" x-text="r.name"></span>
+                <span class="text-warn-500 text-xs ml-auto">★★★★★</span>
+              </div>
+              <p class="text-sm text-navy-600" x-text="r.text"></p>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── CHAT ───────────────────── -->
+<div x-show="screen==='chat'" class="flex" style="height:calc(100vh - 64px)">
+  <div class="w-72 bg-white border-r border-navy-200 flex-col hidden md:flex">
+    <div class="p-4 border-b border-navy-200">
+      <h2 class="font-heading font-semibold text-navy-900 text-sm mb-3">My Conversations</h2>
+      <div class="relative">
+        <svg class="absolute left-3 top-2.5 w-4 h-4 text-navy-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input placeholder="Search chats..." class="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-brand-700">
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto">
+      <template x-for="(conv,i) in conversations">
+        <div @click="activeConv=i" :class="activeConv===i?'bg-brand-50 border-r-2 border-brand-700':'hover:bg-navy-50'" class="p-4 cursor-pointer transition-all">
+          <div class="flex items-center gap-3">
+            <div class="relative">
+              <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold" :style="`background:${conv.color}`" x-text="conv.initials"></div>
+              <div x-show="conv.online" class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success-600 rounded-full border-2 border-white"></div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-semibold text-navy-900" x-text="conv.username"></span>
+                <span class="text-xs text-navy-400" x-text="conv.time"></span>
+              </div>
+              <p class="text-xs text-navy-500 truncate" x-text="conv.lastMsg"></p>
+            </div>
+            <div x-show="conv.unread" class="w-5 h-5 bg-brand-700 rounded-full flex items-center justify-center text-white text-xs font-bold" x-text="conv.unread"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+  <div class="flex-1 flex flex-col bg-navy-50">
+    <div class="bg-white border-b border-navy-200 px-5 py-3 flex items-center justify-between flex-shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="relative">
+          <div class="w-10 h-10 rounded-full bg-brand-700 flex items-center justify-center text-white font-bold text-sm">MR</div>
+          <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success-600 rounded-full border-2 border-white"></div>
+        </div>
+        <div>
+          <div class="font-semibold text-navy-900 text-sm">@MindfulRohan</div>
+          <div class="text-xs text-success-600 font-medium">Online · Responds in &lt;5 min</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button @click="go('advisor-profile')" class="text-xs text-navy-500 hover:text-navy-800 px-3 py-1.5 rounded-lg hover:bg-navy-100 transition-colors">View Profile</button>
+        <button @click="go('booking')" class="bg-cta-500 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-cta-600 transition-colors flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
+          Book Video $39
+        </button>
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-hide">
+      <div class="flex justify-center"><span class="text-xs bg-success-100 text-success-600 font-medium px-3 py-1.5 rounded-full border border-success-600 border-opacity-20">Free chat — unlimited messages</span></div>
+      <template x-for="msg in chatMessages">
+        <div :class="msg.sender==='user'?'flex justify-end':'flex justify-start items-end gap-2'">
+          <div x-show="msg.sender!=='user'" class="w-8 h-8 rounded-full bg-brand-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">MR</div>
+          <div :class="msg.sender==='user'?'msg-bubble-user':'msg-bubble-advisor'" class="max-w-xs px-4 py-3 text-sm leading-relaxed shadow-sm" x-text="msg.text"></div>
+        </div>
+      </template>
+      <div x-show="advisorTyping" class="flex items-end gap-2">
+        <div class="w-8 h-8 rounded-full bg-brand-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">MR</div>
+        <div class="msg-bubble-advisor px-4 py-3 shadow-sm"><div class="flex gap-1 items-center h-4">
+          <div class="w-2 h-2 bg-navy-400 rounded-full animate-bounce" style="animation-delay:0ms"></div>
+          <div class="w-2 h-2 bg-navy-400 rounded-full animate-bounce" style="animation-delay:150ms"></div>
+          <div class="w-2 h-2 bg-navy-400 rounded-full animate-bounce" style="animation-delay:300ms"></div>
+        </div></div>
+      </div>
+    </div>
+    <div class="bg-white border-t border-navy-200 p-4 flex-shrink-0">
+      <div class="flex items-end gap-3 bg-navy-50 rounded-2xl px-4 py-3 border border-navy-200 focus-within:border-brand-700 focus-within:ring-2 focus-within:ring-brand-700 focus-within:ring-opacity-20 transition-all">
+        <textarea x-model="newMessage" @keydown.enter.prevent="sendMsg()" placeholder="Type your message..." rows="1" class="flex-1 bg-transparent text-sm text-navy-900 placeholder-navy-400 resize-none focus:outline-none max-h-32 leading-relaxed"></textarea>
+        <button @click="sendMsg()" :disabled="!newMessage.trim()" class="bg-brand-700 text-white w-9 h-9 rounded-xl flex items-center justify-center hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex-shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        </button>
+      </div>
+      <p class="text-xs text-navy-400 mt-2 text-center">Chat is always free. <button @click="go('booking')" class="text-brand-700 font-medium hover:underline">Book a video session</button> for deeper consultation.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── BOOKING ───────────────────── -->
+<div x-show="screen==='booking'" class="max-w-2xl mx-auto px-4 py-8">
+  <button @click="go('advisor-profile')" class="flex items-center gap-2 text-sm text-navy-500 hover:text-navy-800 mb-6 transition-colors">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back
+  </button>
+  <div class="bg-white rounded-2xl border border-navy-200 shadow-sm p-6">
+    <div class="flex items-center gap-4 pb-5 border-b border-navy-100 mb-6">
+      <div class="w-14 h-14 rounded-2xl bg-brand-700 flex items-center justify-center text-white text-lg font-bold">MR</div>
+      <div><h2 class="font-heading font-bold text-navy-900">Book with @MindfulRohan</h2><p class="text-sm text-navy-500">Licensed Clinical Psychologist</p></div>
+    </div>
+    <div class="mb-6">
+      <label class="block text-sm font-semibold text-navy-800 mb-3">Session Duration</label>
+      <div class="grid grid-cols-2 gap-3">
+        <button @click="bookDuration='30'" :class="bookDuration==='30'?'border-brand-700 bg-brand-50 ring-2 ring-brand-700 ring-opacity-20':'border-navy-200 hover:border-brand-700'" class="border-2 rounded-xl p-4 text-left transition-all">
+          <div class="font-semibold text-navy-900">30 minutes</div>
+          <div class="text-2xl font-heading font-bold text-brand-700 mt-1">$39</div>
+          <div class="text-xs text-navy-500 mt-1">Quick consultation</div>
+        </button>
+        <button @click="bookDuration='60'" :class="bookDuration==='60'?'border-brand-700 bg-brand-50 ring-2 ring-brand-700 ring-opacity-20':'border-navy-200 hover:border-brand-700'" class="border-2 rounded-xl p-4 text-left transition-all">
+          <div class="flex items-center gap-2"><span class="font-semibold text-navy-900">60 minutes</span><span class="bg-cta-100 text-cta-600 text-xs font-bold px-2 py-0.5 rounded-full">POPULAR</span></div>
+          <div class="text-2xl font-heading font-bold text-brand-700 mt-1">$69</div>
+          <div class="text-xs text-navy-500 mt-1">In-depth session</div>
+        </button>
+      </div>
+    </div>
+    <div class="mb-6">
+      <label class="block text-sm font-semibold text-navy-800 mb-3">Select Date — March 2026</label>
+      <div class="grid grid-cols-7 gap-1 text-center">
+        <template x-for="day in ['Su','Mo','Tu','We','Th','Fr','Sa']"><div class="text-xs text-navy-400 py-1" x-text="day"></div></template>
+        <template x-for="d in bookDays">
+          <button @click="!d.disabled && (bookDate=d.date)" :disabled="d.disabled"
+            :class="bookDate===d.date?'bg-brand-700 text-white':d.disabled?'text-navy-300 cursor-not-allowed':'hover:bg-brand-50 hover:text-brand-700 text-navy-700'"
+            class="rounded-lg py-2 text-sm font-medium transition-all" x-text="d.label"></button>
+        </template>
+      </div>
+    </div>
+    <div class="mb-6">
+      <label class="block text-sm font-semibold text-navy-800 mb-3">Available Times</label>
+      <div class="grid grid-cols-4 gap-2">
+        <template x-for="slot in timeSlots">
+          <button @click="!slot.taken&&(bookTime=slot.t)" :disabled="slot.taken"
+            :class="bookTime===slot.t?'bg-brand-700 text-white border-brand-700':slot.taken?'bg-navy-50 text-navy-300 cursor-not-allowed border-navy-100':'border-navy-200 text-navy-700 hover:border-brand-700 hover:bg-brand-50'"
+            class="border rounded-xl py-2.5 text-xs font-medium transition-all" x-text="slot.taken?'Taken':slot.t"></button>
+        </template>
+      </div>
+    </div>
+    <div class="bg-navy-50 rounded-xl p-5 mb-6 border border-navy-200">
+      <h3 class="font-semibold text-navy-800 text-sm mb-4">Payment Details</h3>
+      <div class="space-y-3">
+        <input type="text" placeholder="Name on card" class="w-full px-3 py-2.5 text-sm rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-brand-700 bg-white">
+        <input type="text" placeholder="Card number" class="w-full px-3 py-2.5 text-sm rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-brand-700 bg-white">
+        <div class="grid grid-cols-2 gap-3">
+          <input type="text" placeholder="MM / YY" class="px-3 py-2.5 text-sm rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-brand-700 bg-white">
+          <input type="text" placeholder="CVC" class="px-3 py-2.5 text-sm rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-brand-700 bg-white">
+        </div>
+      </div>
+    </div>
+    <div class="border-t border-navy-100 pt-4 mb-5">
+      <div class="flex justify-between text-sm text-navy-600 mb-1"><span x-text="`Session (${bookDuration} min)`"></span><span x-text="bookDuration==='60'?'$69':'$39'"></span></div>
+      <div class="flex justify-between text-sm text-navy-600 mb-3"><span>Platform fee</span><span>$0</span></div>
+      <div class="flex justify-between font-semibold text-navy-900"><span>Total</span><span x-text="bookDuration==='60'?'$69.00':'$39.00'"></span></div>
+    </div>
+    <button @click="bookingConfirmed=true" class="w-full bg-cta-500 text-white py-3.5 rounded-xl font-semibold hover:bg-cta-600 transition-colors">
+      Confirm &amp; Pay <span x-text="bookDuration==='60'?'$69':'$39'"></span>
+    </button>
+    <div class="flex items-center justify-center gap-1.5 mt-3">
+      <svg class="w-4 h-4 text-navy-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <p class="text-xs text-navy-400">Secured &amp; encrypted. Cancel 24hr before for full refund.</p>
+    </div>
+  </div>
+  <div x-show="bookingConfirmed" class="fixed inset-0 bg-navy-900 bg-opacity-60 flex items-center justify-center z-50 px-4">
+    <div class="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
+      <div class="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-success-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <h3 class="font-heading text-xl font-bold text-navy-900 mb-2">Booking Confirmed!</h3>
+      <p class="text-navy-500 text-sm mb-6">Your video session with @MindfulRohan is confirmed. A calendar invite has been sent to your email.</p>
+      <button @click="bookingConfirmed=false;go('explore')" class="w-full bg-brand-700 text-white py-3 rounded-xl font-semibold hover:bg-brand-600 transition-colors">Back to Explore</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── ADVISOR ONBOARDING ───────────────────── -->
+<!-- Multi-step form inspired by 21st.dev MultiStepForm pattern -->
+<div x-show="screen==='onboarding'" class="max-w-2xl mx-auto px-4 py-10">
+  <div class="text-center mb-8">
+    <h1 class="font-heading text-2xl font-bold text-navy-900 mb-2">Join as an Advisor</h1>
+    <p class="text-navy-500 text-sm">Your real identity is kept strictly private. Only your username and expertise will be shown.</p>
+  </div>
+
+  <!-- Stepper -->
+  <div class="flex items-center justify-center mb-10">
+    <template x-for="(step,i) in onboardingSteps">
+      <div class="flex items-center">
+        <div class="flex flex-col items-center">
+          <div :class="i < onboardStep ? 'step-done' : i === onboardStep ? 'step-active' : 'step-inactive'"
+            class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all">
+            <template x-if="i < onboardStep"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></template>
+            <template x-if="i >= onboardStep"><span x-text="i+1"></span></template>
+          </div>
+          <span class="text-xs mt-1.5 font-medium" :class="i===onboardStep?'text-brand-700':'text-navy-400'" x-text="step"></span>
+        </div>
+        <div x-show="i < onboardingSteps.length-1" class="w-16 h-0.5 mb-5 mx-1" :class="i < onboardStep ? 'bg-success-600' : 'bg-navy-200'"></div>
+      </div>
+    </template>
+  </div>
+
+  <div class="bg-white rounded-2xl border border-navy-200 shadow-sm p-8">
+
+    <!-- Step 0: Profile & Username -->
+    <div x-show="onboardStep===0">
+      <h2 class="font-heading text-lg font-bold text-navy-900 mb-1">Public Profile</h2>
+      <p class="text-sm text-navy-500 mb-6">This is what users will see. Your real name stays private.</p>
+      <div class="space-y-5">
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Username (public) <span class="text-danger-600">*</span></label>
+          <div class="relative">
+            <span class="absolute left-3 top-3 text-navy-400 text-sm">@</span>
+            <input type="text" placeholder="YourUsername" class="w-full pl-7 pr-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+          </div>
+          <p class="text-xs text-navy-400 mt-1">Only letters, numbers, underscores. This is all users will see.</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Professional Title (public) <span class="text-danger-600">*</span></label>
+          <input type="text" placeholder="e.g. Licensed Career Coach, Certified Financial Planner" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Bio (public) <span class="text-danger-600">*</span></label>
+          <textarea rows="4" placeholder="Tell users about your background, approach, and what you can help with..." class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all resize-none"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-2">Expertise Sectors (select all that apply) <span class="text-danger-600">*</span></label>
+          <div class="grid grid-cols-2 gap-2">
+            <template x-for="sec in sectors">
+              <label class="flex items-center gap-2 p-3 rounded-xl border border-navy-200 cursor-pointer hover:border-brand-700 hover:bg-brand-50 transition-all">
+                <input type="checkbox" class="w-4 h-4 text-brand-700 rounded focus:ring-brand-700">
+                <span class="text-sm text-navy-700" x-text="sec"></span>
+              </label>
+            </template>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Languages</label>
+          <input type="text" placeholder="e.g. English, Spanish" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 1: Credentials -->
+    <div x-show="onboardStep===1">
+      <h2 class="font-heading text-lg font-bold text-navy-900 mb-1">Credentials &amp; Qualifications</h2>
+      <p class="text-sm text-navy-500 mb-6">Upload proof of your qualifications. These are reviewed by admin and never shown to users.</p>
+      <div class="space-y-5">
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Highest Qualification <span class="text-danger-600">*</span></label>
+          <select class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 bg-white transition-all">
+            <option value="">Select qualification</option>
+            <option>PhD / Doctorate</option><option>Master's Degree</option><option>Bachelor's Degree</option>
+            <option>Professional Certificate</option><option>Industry License</option><option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Field of Study / Specialisation <span class="text-danger-600">*</span></label>
+          <input type="text" placeholder="e.g. Clinical Psychology, Corporate Finance" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Years of Experience <span class="text-danger-600">*</span></label>
+          <select class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 bg-white transition-all">
+            <option value="">Select</option>
+            <option>1–2 years</option><option>3–5 years</option><option>6–10 years</option><option>10+ years</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Upload Degree / Certificate <span class="text-danger-600">*</span></label>
+          <div class="border-2 border-dashed border-navy-200 rounded-xl p-8 text-center hover:border-brand-700 transition-all cursor-pointer bg-navy-50 hover:bg-brand-50">
+            <svg class="w-10 h-10 text-navy-300 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <p class="text-sm font-medium text-navy-700">Click to upload or drag &amp; drop</p>
+            <p class="text-xs text-navy-400 mt-1">PDF, JPG, PNG up to 10MB</p>
+            <input type="file" class="hidden" accept=".pdf,.jpg,.jpeg,.png">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Upload Professional License (if applicable)</label>
+          <div class="border-2 border-dashed border-navy-200 rounded-xl p-6 text-center hover:border-brand-700 transition-all cursor-pointer bg-navy-50 hover:bg-brand-50">
+            <svg class="w-8 h-8 text-navy-300 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <p class="text-sm font-medium text-navy-700">Upload license document</p>
+            <p class="text-xs text-navy-400 mt-1">PDF, JPG, PNG up to 10MB</p>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Previous Work / Portfolio (optional)</label>
+          <textarea rows="3" placeholder="Describe previous work, notable projects, or paste links to published work/profiles..." class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all resize-none"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Identity & Address (private) -->
+    <div x-show="onboardStep===2">
+      <div class="bg-warn-100 border border-warn-500 border-opacity-30 rounded-xl p-4 mb-6 flex gap-3">
+        <svg class="w-5 h-5 text-warn-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <div>
+          <p class="text-sm font-semibold text-navy-800">Strictly Private — Never Shown to Users</p>
+          <p class="text-xs text-navy-600 mt-0.5">This information is for identity verification only. It is encrypted, seen only by admins, and never revealed to users or other advisors.</p>
+        </div>
+      </div>
+      <h2 class="font-heading text-lg font-bold text-navy-900 mb-1">Identity &amp; Address Verification</h2>
+      <p class="text-sm text-navy-500 mb-6">Required for trust and safety. All data is encrypted at rest.</p>
+      <div class="space-y-5">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-navy-700 mb-1.5">Legal First Name <span class="text-danger-600">*</span></label>
+            <input type="text" placeholder="As on your ID" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-navy-700 mb-1.5">Legal Last Name <span class="text-danger-600">*</span></label>
+            <input type="text" placeholder="As on your ID" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Date of Birth <span class="text-danger-600">*</span></label>
+          <input type="date" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all bg-white">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Street Address <span class="text-danger-600">*</span></label>
+          <input type="text" placeholder="123 Example Street, Apt 4B" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-navy-700 mb-1.5">City <span class="text-danger-600">*</span></label>
+            <input type="text" placeholder="City" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-navy-700 mb-1.5">State / Region</label>
+            <input type="text" placeholder="State" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-navy-700 mb-1.5">Postal Code <span class="text-danger-600">*</span></label>
+            <input type="text" placeholder="ZIP" class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 transition-all">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Country <span class="text-danger-600">*</span></label>
+          <select class="w-full px-4 py-3 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 bg-white transition-all">
+            <option value="">Select country</option>
+            <option>United States</option><option>United Kingdom</option><option>Canada</option>
+            <option>Australia</option><option>India</option><option>Germany</option><option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-navy-700 mb-1.5">Government-Issued ID <span class="text-danger-600">*</span></label>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <select class="px-3 py-2.5 rounded-xl border border-navy-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 bg-white col-span-2">
+              <option>Passport</option><option>Driver's License</option><option>National ID</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="border-2 border-dashed border-navy-200 rounded-xl p-5 text-center hover:border-brand-700 transition-all cursor-pointer bg-navy-50 hover:bg-brand-50">
+              <p class="text-xs font-medium text-navy-600">Front of ID</p>
+              <p class="text-xs text-navy-400 mt-1">JPG, PNG, PDF</p>
+            </div>
+            <div class="border-2 border-dashed border-navy-200 rounded-xl p-5 text-center hover:border-brand-700 transition-all cursor-pointer bg-navy-50 hover:bg-brand-50">
+              <p class="text-xs font-medium text-navy-600">Back of ID</p>
+              <p class="text-xs text-navy-400 mt-1">JPG, PNG, PDF</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Review & Submit -->
+    <div x-show="onboardStep===3">
+      <h2 class="font-heading text-lg font-bold text-navy-900 mb-1">Review &amp; Submit</h2>
+      <p class="text-sm text-navy-500 mb-6">Check your details before submitting for admin review.</p>
+      <div class="space-y-4 mb-8">
+        <div class="bg-navy-50 rounded-xl border border-navy-200 p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-navy-800">Public Profile</h3>
+            <button @click="onboardStep=0" class="text-xs text-brand-700 hover:underline">Edit</button>
+          </div>
+          <div class="space-y-1.5 text-sm text-navy-600">
+            <div><span class="font-medium text-navy-800">Username:</span> @MyAdvisorUsername</div>
+            <div><span class="font-medium text-navy-800">Title:</span> Licensed Career Coach</div>
+            <div><span class="font-medium text-navy-800">Sectors:</span> Career, Finance</div>
+          </div>
+        </div>
+        <div class="bg-navy-50 rounded-xl border border-navy-200 p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-navy-800">Credentials</h3>
+            <button @click="onboardStep=1" class="text-xs text-brand-700 hover:underline">Edit</button>
+          </div>
+          <div class="space-y-1.5 text-sm text-navy-600">
+            <div><span class="font-medium text-navy-800">Qualification:</span> Master's Degree</div>
+            <div class="flex items-center gap-2"><span class="font-medium text-navy-800">Document:</span>
+              <span class="text-xs bg-success-100 text-success-600 px-2 py-0.5 rounded-full">certificate.pdf uploaded</span>
+            </div>
+          </div>
+        </div>
+        <div class="bg-navy-50 rounded-xl border border-navy-200 p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-navy-800">Identity (Private) <span class="text-xs font-normal text-navy-400">— admin only</span></h3>
+            <button @click="onboardStep=2" class="text-xs text-brand-700 hover:underline">Edit</button>
+          </div>
+          <div class="space-y-1.5 text-sm text-navy-600">
+            <div class="blur-sm select-none text-xs">John Smith · DOB 1990 · 123 Main St, New York, NY</div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs bg-success-100 text-success-600 px-2 py-0.5 rounded-full">ID documents uploaded</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="space-y-3 mb-6">
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" class="w-4 h-4 mt-0.5 text-brand-700 rounded focus:ring-brand-700">
+          <span class="text-sm text-navy-600">I confirm that all information provided is accurate and I consent to AdvisorConnect storing my private details securely for verification purposes only.</span>
+        </label>
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" class="w-4 h-4 mt-0.5 text-brand-700 rounded focus:ring-brand-700">
+          <span class="text-sm text-navy-600">I agree to the <a href="#" class="text-brand-700 hover:underline">Advisor Terms of Service</a> and <a href="#" class="text-brand-700 hover:underline">Privacy Policy</a>.</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Step nav -->
+    <div class="flex justify-between mt-8 pt-6 border-t border-navy-100">
+      <button x-show="onboardStep>0" @click="onboardStep--" class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-navy-600 border border-navy-200 rounded-xl hover:bg-navy-50 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5"/></svg> Back
+      </button>
+      <div x-show="onboardStep===0" class="w-1"></div>
+      <button x-show="onboardStep<3" @click="onboardStep++" class="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold bg-brand-700 text-white rounded-xl hover:bg-brand-600 transition-colors ml-auto">
+        Continue <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+      <button x-show="onboardStep===3" @click="onboardSubmitted=true" class="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold bg-success-600 text-white rounded-xl hover:bg-success-700 transition-colors ml-auto">
+        Submit Application <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Submitted modal -->
+  <div x-show="onboardSubmitted" class="fixed inset-0 bg-navy-900 bg-opacity-60 flex items-center justify-center z-50 px-4">
+    <div class="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
+      <div class="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-success-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <h3 class="font-heading text-xl font-bold text-navy-900 mb-2">Application Submitted!</h3>
+      <p class="text-navy-500 text-sm mb-2">Our admin team will review your credentials and documents.</p>
+      <p class="text-navy-800 text-sm font-medium mb-6">You'll receive a decision within 2–3 business days.</p>
+      <button @click="onboardSubmitted=false;go('landing')" class="w-full bg-brand-700 text-white py-3 rounded-xl font-semibold hover:bg-brand-600 transition-colors">Back to Home</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── ADVISOR DASHBOARD ───────────────────── -->
+<div x-show="screen==='advisor-dashboard'" class="flex" style="min-height:calc(100vh - 64px)">
+  <!-- Sidebar -->
+  <div class="w-60 bg-white border-r border-navy-200 flex flex-col hidden md:flex flex-shrink-0">
+    <div class="p-5 border-b border-navy-200">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-brand-700 flex items-center justify-center text-white font-bold">MR</div>
+        <div><div class="font-semibold text-navy-900 text-sm">@MindfulRohan</div><div class="text-xs text-success-600 font-medium">Active</div></div>
+      </div>
+    </div>
+    <nav class="flex-1 p-3 space-y-1">
+      <template x-for="item in advisorNav">
+        <button @click="advisorTab=item.id" :class="advisorTab===item.id?'bg-brand-50 text-brand-700 font-semibold':'text-navy-600 hover:bg-navy-50 hover:text-navy-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all">
+          <span x-text="item.icon" class="text-base"></span><span x-text="item.label"></span>
+          <span x-show="item.badge" class="ml-auto bg-brand-700 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center" x-text="item.badge"></span>
+        </button>
+      </template>
+    </nav>
+    <div class="p-4 border-t border-navy-200">
+      <button @click="go('landing')" class="w-full text-left text-sm text-navy-500 hover:text-navy-800 transition-colors">← Exit dashboard</button>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="flex-1 bg-navy-50 p-6 overflow-y-auto">
+
+    <!-- Overview -->
+    <div x-show="advisorTab==='overview'">
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="font-heading text-xl font-bold text-navy-900">Welcome back, @MindfulRohan</h1>
+        <span class="text-xs bg-success-100 text-success-600 font-semibold px-3 py-1.5 rounded-full">Profile Live</span>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <template x-for="stat in advisorStats">
+          <div class="bg-white rounded-2xl p-5 border border-navy-200 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-2xl" x-text="stat.icon"></span>
+              <span class="text-xs font-semibold px-2 py-1 rounded-full" :class="stat.upClass" x-text="stat.change"></span>
+            </div>
+            <div class="font-heading text-2xl font-bold text-navy-900" x-text="stat.value"></div>
+            <div class="text-xs text-navy-500 mt-0.5" x-text="stat.label"></div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Recent chats -->
+      <div class="grid lg:grid-cols-2 gap-5">
+        <div class="bg-white rounded-2xl border border-navy-200 shadow-sm">
+          <div class="flex items-center justify-between p-5 border-b border-navy-100">
+            <h2 class="font-heading font-semibold text-navy-900 text-sm">Active Chats</h2>
+            <button @click="advisorTab='chats'" class="text-xs text-brand-700 hover:underline">View all</button>
+          </div>
+          <div class="divide-y divide-navy-100">
+            <template x-for="chat in activeChats">
+              <div class="flex items-center gap-3 p-4 hover:bg-navy-50 cursor-pointer transition-colors">
+                <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" :style="`background:${chat.color}`" x-text="chat.initials"></div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-navy-900" x-text="chat.username"></span>
+                    <span class="text-xs text-navy-400" x-text="chat.time"></span>
+                  </div>
+                  <p class="text-xs text-navy-500 truncate" x-text="chat.msg"></p>
+                </div>
+                <div x-show="chat.unread" class="w-2 h-2 bg-brand-700 rounded-full flex-shrink-0"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-navy-200 shadow-sm">
+          <div class="flex items-center justify-between p-5 border-b border-navy-100">
+            <h2 class="font-heading font-semibold text-navy-900 text-sm">Upcoming Video Sessions</h2>
+            <button class="text-xs text-brand-700 hover:underline">View all</button>
+          </div>
+          <div class="divide-y divide-navy-100">
+            <template x-for="session in upcomingSessions">
+              <div class="p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" :style="`background:${session.color}`" x-text="session.initials"></div>
+                    <span class="text-sm font-medium text-navy-900" x-text="session.username"></span>
+                  </div>
+                  <span class="text-xs bg-brand-50 text-brand-700 font-semibold px-2 py-0.5 rounded-full" x-text="session.duration"></span>
+                </div>
+                <div class="text-xs text-navy-500" x-text="session.time"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chats tab -->
+    <div x-show="advisorTab==='chats'">
+      <h1 class="font-heading text-xl font-bold text-navy-900 mb-5">All Chats</h1>
+      <div class="bg-white rounded-2xl border border-navy-200 shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-navy-100">
+          <input placeholder="Search conversations..." class="w-full px-3 py-2 text-sm rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-brand-700">
+        </div>
+        <div class="divide-y divide-navy-100">
+          <template x-for="chat in allAdvChats">
+            <div class="flex items-center gap-3 p-4 hover:bg-navy-50 cursor-pointer transition-colors">
+              <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" :style="`background:${chat.color}`" x-text="chat.initials"></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-0.5">
+                  <span class="text-sm font-semibold text-navy-900" x-text="chat.username"></span>
+                  <span class="text-xs text-navy-400" x-text="chat.time"></span>
+                </div>
+                <p class="text-xs text-navy-500 truncate" x-text="chat.msg"></p>
+              </div>
+              <span :class="chat.unread?'bg-brand-700 text-white':'bg-navy-100 text-navy-500'" class="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" x-text="chat.unread?'New':'Read'"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Earnings tab -->
+    <div x-show="advisorTab==='earnings'">
+      <h1 class="font-heading text-xl font-bold text-navy-900 mb-5">Earnings</h1>
+      <div class="grid sm:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white rounded-2xl p-5 border border-navy-200 shadow-sm text-center">
+          <div class="text-xs text-navy-500 mb-1">This Month</div>
+          <div class="font-heading text-3xl font-bold text-brand-700">$1,248</div>
+          <div class="text-xs text-success-600 font-medium mt-1">+18% vs last month</div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-navy-200 shadow-sm text-center">
+          <div class="text-xs text-navy-500 mb-1">Total Earned</div>
+          <div class="font-heading text-3xl font-bold text-navy-900">$8,920</div>
+          <div class="text-xs text-navy-400 mt-1">Since joining</div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-navy-200 shadow-sm text-center">
+          <div class="text-xs text-navy-500 mb-1">Pending Payout</div>
+          <div class="font-heading text-3xl font-bold text-navy-900">$428</div>
+          <div class="text-xs text-navy-400 mt-1">Pays out Friday</div>
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl border border-navy-200 shadow-sm p-5">
+        <h2 class="font-heading font-semibold text-navy-900 text-sm mb-4">Recent Transactions</h2>
+        <div class="space-y-3">
+          <template x-for="tx in earnings">
+            <div class="flex items-center justify-between py-2.5 border-b border-navy-100 last:border-0">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-success-100 flex items-center justify-center">
+                  <svg class="w-4 h-4 text-success-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
+                </div>
+                <div><div class="text-sm font-medium text-navy-800" x-text="tx.label"></div><div class="text-xs text-navy-400" x-text="tx.date"></div></div>
+              </div>
+              <span class="text-sm font-semibold text-success-600" x-text="tx.amount"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ───────────────────── ADMIN DASHBOARD ───────────────────── -->
+<div x-show="screen==='admin-dashboard'" class="flex" style="min-height:calc(100vh - 64px)">
+  <!-- Admin sidebar -->
+  <div class="w-64 bg-navy-900 text-white flex flex-col flex-shrink-0">
+    <div class="p-5 border-b border-navy-800">
+      <div class="text-xs text-navy-400 uppercase tracking-widest mb-1">Admin Panel</div>
+      <div class="font-heading font-bold text-white">AdvisorConnect</div>
+    </div>
+    <nav class="flex-1 p-3 space-y-1">
+      <template x-for="item in adminNav">
+        <button @click="adminTab=item.id; if(item.screen) go(item.screen)" :class="adminTab===item.id?'bg-white bg-opacity-10 text-white font-semibold':'text-navy-400 hover:bg-white hover:bg-opacity-5 hover:text-white'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all">
+          <span x-text="item.icon" class="text-base"></span><span x-text="item.label"></span>
+          <span x-show="item.badge" class="ml-auto bg-cta-500 text-white text-xs font-bold px-2 py-0.5 rounded-full" x-text="item.badge"></span>
+        </button>
+      </template>
+    </nav>
+    <div class="p-4 border-t border-navy-800">
+      <button @click="go('landing')" class="w-full text-left text-sm text-navy-500 hover:text-white transition-colors">← Exit admin</button>
+    </div>
+  </div>
+
+  <!-- Admin main -->
+  <div class="flex-1 bg-navy-50 overflow-y-auto">
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="font-heading text-xl font-bold text-navy-900">Admin Overview</h1>
+        <div class="text-sm text-navy-500">March 16, 2026</div>
+      </div>
+
+      <!-- Stats -->
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <template x-for="s in adminStats">
+          <div class="bg-white rounded-2xl p-5 border border-navy-200 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center" :style="`background:${s.bg}`">
+                <span x-text="s.icon"></span>
+              </div>
+              <span class="text-xs font-semibold text-success-600" x-text="s.change"></span>
+            </div>
+            <div class="font-heading text-2xl font-bold text-navy-900" x-text="s.value"></div>
+            <div class="text-xs text-navy-500 mt-0.5" x-text="s.label"></div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Pending applications -->
+      <div class="bg-white rounded-2xl border border-navy-200 shadow-sm mb-5">
+        <div class="flex items-center justify-between p-5 border-b border-navy-100">
+          <div class="flex items-center gap-2">
+            <h2 class="font-heading font-semibold text-navy-900 text-sm">Pending Applications</h2>
+            <span class="bg-warn-100 text-warn-500 text-xs font-bold px-2 py-0.5 rounded-full">12 new</span>
+          </div>
+          <button @click="go('admin-applications')" class="text-xs text-brand-700 hover:underline font-medium">View all →</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-navy-50 border-b border-navy-100">
+              <tr>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Applicant</th>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Sector</th>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Applied</th>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Status</th>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-navy-100">
+              <template x-for="app in adminApplications.slice(0,5)">
+                <tr class="hover:bg-navy-50 transition-colors">
+                  <td class="px-5 py-3.5">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" :style="`background:${app.color}`" x-text="app.initials"></div>
+                      <div><div class="font-medium text-navy-900" x-text="app.username"></div><div class="text-xs text-navy-400 blur-sm select-none" x-text="app.realName"></div></div>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3.5"><span class="text-xs bg-brand-50 text-brand-700 px-2 py-1 rounded-full" x-text="app.sector"></span></td>
+                  <td class="px-5 py-3.5 text-navy-500 text-xs" x-text="app.date"></td>
+                  <td class="px-5 py-3.5">
+                    <span :class="app.status==='Pending'?'bg-warn-100 text-warn-500':app.status==='Approved'?'bg-success-100 text-success-600':'bg-danger-100 text-danger-600'" class="text-xs font-semibold px-2 py-1 rounded-full" x-text="app.status"></span>
+                  </td>
+                  <td class="px-5 py-3.5">
+                    <button @click="go('admin-app-detail')" class="text-xs text-brand-700 font-medium hover:underline">Review →</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Activity feed -->
+      <div class="bg-white rounded-2xl border border-navy-200 shadow-sm">
+        <div class="p-5 border-b border-navy-100">
+          <h2 class="font-heading font-semibold text-navy-900 text-sm">Recent Activity</h2>
+        </div>
+        <div class="p-4 space-y-3">
+          <template x-for="a in adminActivity">
+            <div class="flex items-start gap-3 text-sm">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" :style="`background:${a.bg}`" x-text="a.icon"></div>
+              <div class="flex-1"><p class="text-navy-700" x-text="a.text"></p><p class="text-xs text-navy-400 mt-0.5" x-text="a.time"></p></div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── ADMIN APPLICATIONS ───────────────────── -->
+<div x-show="screen==='admin-applications'" class="flex" style="min-height:calc(100vh - 64px)">
+  <div class="w-64 bg-navy-900 text-white flex flex-col flex-shrink-0">
+    <div class="p-5 border-b border-navy-800"><div class="text-xs text-navy-400 uppercase tracking-widest mb-1">Admin Panel</div><div class="font-heading font-bold text-white">AdvisorConnect</div></div>
+    <nav class="flex-1 p-3 space-y-1">
+      <template x-for="item in adminNav">
+        <button @click="if(item.screen) go(item.screen); else go('admin-dashboard')" :class="screen===item.screen||screen==='admin-applications'&&item.id==='applications'?'bg-white bg-opacity-10 text-white font-semibold':'text-navy-400 hover:bg-white hover:bg-opacity-5 hover:text-white'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all">
+          <span x-text="item.icon" class="text-base"></span><span x-text="item.label"></span>
+          <span x-show="item.badge" class="ml-auto bg-cta-500 text-white text-xs font-bold px-2 py-0.5 rounded-full" x-text="item.badge"></span>
+        </button>
+      </template>
+    </nav>
+    <div class="p-4 border-t border-navy-800"><button @click="go('landing')" class="text-sm text-navy-500 hover:text-white transition-colors">← Exit admin</button></div>
+  </div>
+  <div class="flex-1 bg-navy-50 p-6 overflow-y-auto">
+    <div class="flex items-center justify-between mb-5">
+      <h1 class="font-heading text-xl font-bold text-navy-900">Advisor Applications</h1>
+      <div class="flex gap-2">
+        <template x-for="f in ['All','Pending','Approved','Rejected']">
+          <button @click="appFilter=f" :class="appFilter===f?'bg-brand-700 text-white':'bg-white text-navy-600 border border-navy-200 hover:border-brand-700'" class="px-4 py-2 rounded-xl text-sm font-medium transition-all" x-text="f"></button>
+        </template>
+      </div>
+    </div>
+    <div class="bg-white rounded-2xl border border-navy-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-navy-50 border-b border-navy-200">
+            <tr>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Applicant</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Sector</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Qualification</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Applied</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Docs</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Status</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-navy-500 uppercase tracking-wide">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-navy-100">
+            <template x-for="app in adminApplications">
+              <tr x-show="appFilter==='All'||appFilter===app.status" class="hover:bg-navy-50 transition-colors">
+                <td class="px-5 py-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold" :style="`background:${app.color}`" x-text="app.initials"></div>
+                    <div><div class="font-medium text-navy-900" x-text="app.username"></div><div class="text-xs text-navy-400 blur-sm select-none text-xs" x-text="app.realName"></div></div>
+                  </div>
+                </td>
+                <td class="px-5 py-4"><span class="text-xs bg-brand-50 text-brand-700 px-2.5 py-1 rounded-full font-medium" x-text="app.sector"></span></td>
+                <td class="px-5 py-4 text-navy-600 text-xs" x-text="app.qual"></td>
+                <td class="px-5 py-4 text-navy-500 text-xs" x-text="app.date"></td>
+                <td class="px-5 py-4">
+                  <div class="flex gap-1">
+                    <span class="text-xs bg-navy-100 text-navy-600 px-2 py-0.5 rounded-full" x-text="`${app.docs} docs`"></span>
+                  </div>
+                </td>
+                <td class="px-5 py-4">
+                  <span :class="app.status==='Pending'?'bg-warn-100 text-warn-500':app.status==='Approved'?'bg-success-100 text-success-600':'bg-danger-100 text-danger-600'" class="text-xs font-semibold px-2.5 py-1 rounded-full" x-text="app.status"></span>
+                </td>
+                <td class="px-5 py-4">
+                  <button @click="go('admin-app-detail')" class="text-xs font-semibold text-brand-700 hover:underline mr-3">Review</button>
+                  <button x-show="app.status==='Pending'" class="text-xs font-semibold text-success-600 hover:underline mr-2">Approve</button>
+                  <button x-show="app.status==='Pending'" class="text-xs font-semibold text-danger-600 hover:underline">Reject</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── ADMIN APP DETAIL ───────────────────── -->
+<div x-show="screen==='admin-app-detail'" class="flex" style="min-height:calc(100vh - 64px)">
+  <div class="w-64 bg-navy-900 text-white flex flex-col flex-shrink-0">
+    <div class="p-5 border-b border-navy-800"><div class="text-xs text-navy-400 uppercase tracking-widest mb-1">Admin Panel</div><div class="font-heading font-bold text-white">AdvisorConnect</div></div>
+    <nav class="flex-1 p-3 space-y-1">
+      <template x-for="item in adminNav">
+        <button @click="if(item.screen) go(item.screen); else go('admin-dashboard')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-navy-400 hover:bg-white hover:bg-opacity-5 hover:text-white transition-all">
+          <span x-text="item.icon" class="text-base"></span><span x-text="item.label"></span>
+        </button>
+      </template>
+    </nav>
+    <div class="p-4 border-t border-navy-800"><button @click="go('landing')" class="text-sm text-navy-500 hover:text-white transition-colors">← Exit admin</button></div>
+  </div>
+  <div class="flex-1 bg-navy-50 p-6 overflow-y-auto">
+    <div class="flex items-center gap-3 mb-6">
+      <button @click="go('admin-applications')" class="flex items-center gap-1 text-sm text-navy-500 hover:text-navy-800 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5"/></svg> Back to applications
+      </button>
+      <span class="bg-warn-100 text-warn-500 text-xs font-bold px-3 py-1 rounded-full">Pending Review</span>
+    </div>
+
+    <div class="grid lg:grid-cols-2 gap-6">
+      <!-- Left: Submitted info -->
+      <div class="space-y-5">
+        <!-- Public profile -->
+        <div class="bg-white rounded-2xl border border-navy-200 shadow-sm p-5">
+          <h3 class="font-heading font-semibold text-navy-900 text-sm mb-4">Public Profile (will be shown to users)</h3>
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-14 h-14 rounded-2xl bg-brand-700 flex items-center justify-center text-white text-xl font-bold">CA</div>
+            <div>
+              <div class="font-semibold text-navy-900">@CareerAdvisorPro</div>
+              <div class="text-sm text-navy-500">Certified Career Coach &amp; HR Specialist</div>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-1 mb-3">
+            <span class="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full">Career</span>
+            <span class="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full">Finance</span>
+          </div>
+          <p class="text-xs text-navy-600 leading-relaxed">10+ years in HR and career coaching. Helped 500+ professionals with career transitions, salary negotiation, and leadership development.</p>
+        </div>
+
+        <!-- Private identity — shown to admin only -->
+        <div class="bg-white rounded-2xl border border-danger-600 border-opacity-30 shadow-sm p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <h3 class="font-heading font-semibold text-navy-900 text-sm">Private Identity</h3>
+            <span class="text-xs bg-danger-100 text-danger-600 font-semibold px-2 py-0.5 rounded-full">Admin Eyes Only</span>
+          </div>
+          <div class="space-y-2.5 text-sm">
+            <div class="flex justify-between"><span class="text-navy-500 font-medium">Legal Name:</span><span class="text-navy-800 font-semibold">Alexandra Chen</span></div>
+            <div class="flex justify-between"><span class="text-navy-500 font-medium">Date of Birth:</span><span class="text-navy-800">March 4, 1985</span></div>
+            <div class="flex justify-between"><span class="text-navy-500 font-medium">Email:</span><span class="text-navy-800">alex.chen@email.com</span></div>
+            <div class="pt-2 border-t border-navy-100">
+              <div class="text-navy-500 font-medium mb-1">Address:</div>
+              <div class="text-navy-800 text-xs">742 Evergreen Terrace, Springfield, NY 10001, United States</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Credentials submitted -->
+        <div class="bg-white rounded-2xl border border-navy-200 shadow-sm p-5">
+          <h3 class="font-heading font-semibold text-navy-900 text-sm mb-4">Credentials Submitted</h3>
+          <div class="space-y-2.5 text-sm mb-4">
+            <div class="flex justify-between"><span class="text-navy-500 font-medium">Qualification:</span><span class="text-navy-800">Master's in HR Management</span></div>
+            <div class="flex justify-between"><span class="text-navy-500 font-medium">Experience:</span><span class="text-navy-800">10+ years</span></div>
+          </div>
+          <div class="p-3 bg-navy-50 rounded-xl text-xs text-navy-600 leading-relaxed border border-navy-200">
+            <strong>Previous Work:</strong> Senior HR Manager at TechCorp (2015–2021). Certified ICF Coach. Featured in Forbes Career section (2022). LinkedIn: linkedin.com/in/alexchen-coach
+          </div>
+        </div>
+
+        <!-- Admin notes -->
+        <div class="bg-white rounded-2xl border border-navy-200 shadow-sm p-5">
+          <h3 class="font-heading font-semibold text-navy-900 text-sm mb-3">Admin Notes (internal)</h3>
+          <textarea rows="3" placeholder="Add internal notes about this application..." class="w-full px-3 py-2.5 text-sm rounded-xl border border-navy-200 focus:outline-none focus:ring-2 focus:ring-brand-700 resize-none bg-navy-50"></textarea>
+          <button class="mt-2 text-xs text-brand-700 font-medium hover:underline">Save note</button>
+        </div>
+      </div>
+
+      <!-- Right: Documents -->
+      <div class="space-y-5">
+        <div class="bg-white rounded-2xl border border-navy-200 shadow-sm p-5">
+          <h3 class="font-heading font-semibold text-navy-900 text-sm mb-4">Uploaded Documents</h3>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between p-3 bg-navy-50 rounded-xl border border-navy-200">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 bg-red-100 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
+                </div>
+                <div><div class="text-sm font-medium text-navy-800">masters_certificate.pdf</div><div class="text-xs text-navy-400">2.3 MB · Uploaded Mar 14</div></div>
+              </div>
+              <button class="text-xs font-semibold text-brand-700 hover:underline">View</button>
+            </div>
+            <div class="flex items-center justify-between p-3 bg-navy-50 rounded-xl border border-navy-200">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>
+                </div>
+                <div><div class="text-sm font-medium text-navy-800">passport_front.jpg</div><div class="text-xs text-navy-400">1.1 MB · Uploaded Mar 14</div></div>
+              </div>
+              <button class="text-xs font-semibold text-brand-700 hover:underline">View</button>
+            </div>
+            <div class="flex items-center justify-between p-3 bg-navy-50 rounded-xl border border-navy-200">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>
+                </div>
+                <div><div class="text-sm font-medium text-navy-800">icf_license.jpg</div><div class="text-xs text-navy-400">0.9 MB · Uploaded Mar 14</div></div>
+              </div>
+              <button class="text-xs font-semibold text-brand-700 hover:underline">View</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Document preview placeholder -->
+        <div class="bg-white rounded-2xl border border-navy-200 shadow-sm p-5">
+          <h3 class="font-heading font-semibold text-navy-900 text-sm mb-3">Document Preview</h3>
+          <div class="bg-navy-100 rounded-xl h-48 flex items-center justify-center border border-navy-200">
+            <div class="text-center text-navy-400">
+              <svg class="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <p class="text-sm">Click "View" to preview a document</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Decision -->
+        <div class="bg-white rounded-2xl border border-navy-200 shadow-sm p-5">
+          <h3 class="font-heading font-semibold text-navy-900 text-sm mb-4">Make a Decision</h3>
+          <div class="space-y-3">
+            <button class="w-full flex items-center gap-3 p-3.5 bg-success-100 border border-success-600 border-opacity-30 rounded-xl hover:bg-success-600 hover:text-white text-success-600 font-semibold text-sm transition-all group">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+              Approve Application
+            </button>
+            <button class="w-full flex items-center gap-3 p-3.5 bg-navy-50 border border-navy-200 rounded-xl hover:bg-warn-100 hover:border-warn-500 text-navy-700 hover:text-warn-500 font-semibold text-sm transition-all">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 12h8M12 8v8"/></svg>
+              Request More Info
+            </button>
+            <button class="w-full flex items-center gap-3 p-3.5 bg-danger-100 border border-danger-600 border-opacity-20 rounded-xl hover:bg-danger-600 hover:text-white text-danger-600 font-semibold text-sm transition-all">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+              Reject Application
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end pt-16 wrapper -->
+
+<script>
+function App() {
+  return {
+    screen: 'landing',
+    userType: 'user',
+    activeCategory: '',
+    activeConv: 0,
+    newMessage: '',
+    advisorTyping: false,
+    bookDuration: '30',
+    bookDate: '18',
+    bookTime: '10:00',
+    bookingConfirmed: false,
+    onboardStep: 0,
+    onboardSubmitted: false,
+    advisorTab: 'overview',
+    adminTab: 'overview',
+    appFilter: 'All',
+
+    go(s) { this.screen = s; window.scrollTo(0,0); },
+
+    sendMsg() {
+      if (!this.newMessage.trim()) return;
+      this.chatMessages.push({ sender:'user', text: this.newMessage.trim() });
+      this.newMessage = '';
+      this.advisorTyping = true;
+      const replies = [
+        "That's a great question. Let me share my perspective on this.",
+        "I completely understand what you're going through. Many people face similar challenges.",
+        "Here's what I'd recommend based on your situation...",
+        "That's a really important point. Let's explore this further.",
+        "I've seen this pattern before, and there are some effective strategies we can discuss."
+      ];
+      setTimeout(() => {
+        this.advisorTyping = false;
+        this.chatMessages.push({ sender:'advisor', text: replies[Math.floor(Math.random()*replies.length)] });
+      }, 1500);
+    },
+
+    categories: [
+      { name:'Career', icon:'💼', count:'68 advisors' },
+      { name:'Relationships', icon:'💛', count:'54 advisors' },
+      { name:'Finance', icon:'📈', count:'47 advisors' },
+      { name:'Mental Health', icon:'🧠', count:'79 advisors' }
+    ],
+
+    howItWorks: [
+      { num:'01', icon:'🔍', bg:'#EFF6FF', title:'Browse Verified Advisors', desc:'Filter by sector, rating, and language. All advisors are identity-verified by our admin team.' },
+      { num:'02', icon:'💬', bg:'#F0FDF4', title:'Chat for Free', desc:'Send unlimited messages for free. No credit card. No time limits. Just real advice.' },
+      { num:'03', icon:'📹', bg:'#FFF7ED', title:'Book a Video Session', desc:'When you need deeper one-on-one consultation, book a private video call starting at $39.' }
+    ],
+
+    featuredAdvisors: [
+      { initials:'MR', color:'#0369A1', username:'@MindfulRohan', title:'Clinical Psychologist', tags:['Mental Health','CBT'], rating:'4.9', reviews:'342' },
+      { initials:'SC', color:'#059669', username:'@SarahCareerPro', title:'Career & Executive Coach', tags:['Career','Leadership'], rating:'4.8', reviews:'218' },
+      { initials:'FT', color:'#7C3AED', username:'@FinanceWithTed', title:'CFP & Investment Advisor', tags:['Finance','Investment'], rating:'4.9', reviews:'156' },
+      { initials:'EJ', color:'#DC2626', username:'@EmpatheticJana', title:'Relationship Counsellor', tags:['Relationships','Family'], rating:'5.0', reviews:'89' }
+    ],
+
+    allAdvisors: [
+      { initials:'MR', color:'#0369A1', username:'@MindfulRohan', title:'Clinical Psychologist', tags:['Mental Health','CBT'], rating:'4.9', reviews:'342', bio:"8 years helping people with anxiety, depression, and relationship challenges using CBT and mindfulness.", online:true },
+      { initials:'SC', color:'#059669', username:'@SarahCareerPro', title:'Career & Executive Coach', tags:['Career','Leadership'], rating:'4.8', reviews:'218', bio:"ICF-certified coach specializing in career transitions, promotions, and executive presence.", online:true },
+      { initials:'FT', color:'#7C3AED', username:'@FinanceWithTed', title:'CFP & Investment Advisor', tags:['Finance','Investment'], rating:'4.9', reviews:'156', bio:"Certified Financial Planner with 12 years in wealth management and personal finance.", online:false },
+      { initials:'EJ', color:'#DC2626', username:'@EmpatheticJana', title:'Relationship Counsellor', tags:['Relationships','Family'], rating:'5.0', reviews:'89', bio:"Couples and family therapist specializing in communication, trust, and healthy attachment.", online:true },
+      { initials:'DK', color:'#F97316', username:'@DrDiwakarK', title:'Psychiatrist & Therapist', tags:['Mental Health','Trauma'], rating:'4.7', reviews:'201', bio:"Board-certified psychiatrist offering evidence-based therapy for trauma, PTSD, and mood disorders.", online:false },
+      { initials:'RP', color:'#0891B2', username:'@RealtorPriya', title:'Financial Planner', tags:['Finance','Real Estate'], rating:'4.8', reviews:'134', bio:"Helping first-time buyers and investors navigate real estate finance, mortgages, and planning.", online:true },
+      { initials:'NL', color:'#6366F1', username:'@NatalieLifeCoach', title:'Life & Relationship Coach', tags:['Relationships','Career'], rating:'4.6', reviews:'97', bio:"Helping individuals build confidence, navigate breakups, and redesign their life direction.", online:true },
+      { initials:'AM', color:'#CA8A04', username:'@AdvisorMarcus', title:'Corporate Finance Analyst', tags:['Finance','Career'], rating:'4.7', reviews:'112', bio:"Former Goldman analyst turned advisor. Helping young professionals understand money and career growth.", online:false }
+    ],
+
+    freeFeatures: ['Unlimited chat messages','All sectors covered','No signup to browse','Anonymous to advisor','Reply within hours'],
+    paidFeatures: ['Private video call (face-optional)','30 or 60 minute sessions','Screen sharing available','Session recording (opt-in)','Priority scheduling'],
+
+    testimonials: [
+      { text:"I was nervous about asking for help but the free chat was so easy. My career advisor changed my perspective completely.", name:'Anonymous User', sector:'Career Advice', initials:'AU', color:'#0369A1' },
+      { text:"Got genuine financial planning advice that would have cost me $500 at a traditional firm. Incredible platform.", name:'Grateful User', sector:'Finance Advice', initials:'GU', color:'#059669' },
+      { text:"Finally found someone who understood my relationship struggles without judgment. The video session was transformative.", name:'HopefulHeart', sector:'Relationship Advice', initials:'HH', color:'#DC2626' }
+    ],
+
+    advisorReviews: [
+      { initials:'AU', color:'#0369A1', name:'AnonymousUser42', text:"Rohan helped me work through my anxiety about a career change. His CBT techniques were practical and immediately useful." },
+      { initials:'QU', color:'#059669', name:'QuietStruggler', text:"I've been to therapists before but this free chat format made me feel less pressured. Highly recommend." },
+      { initials:'PK', color:'#7C3AED', name:'PeacefulKaylee', text:"Booked the 60-minute video session and it was worth every penny. Changed how I think about my relationships." }
+    ],
+
+    conversations: [
+      { initials:'SC', color:'#059669', username:'@SarahCareerPro', lastMsg:'Let me know how the interview goes!', time:'2m', online:true, unread:2 },
+      { initials:'MR', color:'#0369A1', username:'@MindfulRohan', lastMsg:'That sounds like a great first step.', time:'1h', online:true, unread:0 },
+      { initials:'FT', color:'#7C3AED', username:'@FinanceWithTed', lastMsg:'Here is the breakdown I mentioned...', time:'2h', online:false, unread:0 }
+    ],
+
+    chatMessages: [
+      { sender:'advisor', text:"Hi! I'm @MindfulRohan. How can I help you today? Feel free to share whatever's on your mind." },
+      { sender:'user', text:"Hi, I've been really struggling with anxiety lately and I'm not sure where to start." },
+      { sender:'advisor', text:"Thank you for reaching out — that takes courage. Anxiety is incredibly common and very treatable. Can you tell me a bit more about when it tends to flare up most?" },
+      { sender:'user', text:"Mostly at work, especially before presentations or meetings with my manager." },
+      { sender:'advisor', text:"That sounds like performance anxiety, which is one of the most common forms. The good news is there are specific CBT techniques that work really well for this. Let's start with something called 'thought challenging'. Would you like to try that?" }
+    ],
+
+    sectors: ['Career','Relationships','Finance','Mental Health','Life Coaching','Parenting','Legal Guidance','Health & Wellness'],
+
+    onboardingSteps: ['Public Profile','Credentials','Identity Verification','Review & Submit'],
+
+    advisorNav: [
+      { id:'overview', icon:'🏠', label:'Overview', badge:null },
+      { id:'chats', icon:'💬', label:'Chats', badge:'3' },
+      { id:'sessions', icon:'📹', label:'Sessions', badge:null },
+      { id:'earnings', icon:'💰', label:'Earnings', badge:null },
+      { id:'profile', icon:'⚙️', label:'Profile Settings', badge:null }
+    ],
+
+    advisorStats: [
+      { icon:'💬', value:'1,247', label:'Total Chats', change:'+12%', upClass:'bg-success-100 text-success-600' },
+      { icon:'📹', value:'89', label:'Video Sessions', change:'+8%', upClass:'bg-success-100 text-success-600' },
+      { icon:'⭐', value:'4.9', label:'Avg Rating', change:'Excellent', upClass:'bg-warn-100 text-warn-500' },
+      { icon:'💰', value:'$1,248', label:'This Month', change:'+18%', upClass:'bg-success-100 text-success-600' }
+    ],
+
+    activeChats: [
+      { initials:'AU', color:'#0369A1', username:'@AnonymousUser42', msg:'Thank you so much for your help!', time:'2m', unread:true },
+      { initials:'QS', color:'#DC2626', username:'@QuietStruggler', msg:'I tried the technique you suggested...', time:'15m', unread:true },
+      { initials:'PK', color:'#7C3AED', username:'@PeacefulKaylee', msg:'One more question about this...', time:'1h', unread:false }
+    ],
+
+    upcomingSessions: [
+      { initials:'NW', color:'#059669', username:'@NightOwl88', time:'Today · Mar 16 · 3:00 PM', duration:'60 min' },
+      { initials:'BH', color:'#F97316', username:'@BrightHope22', time:'Tomorrow · Mar 17 · 11:00 AM', duration:'30 min' }
+    ],
+
+    allAdvChats: [
+      { initials:'AU', color:'#0369A1', username:'@AnonymousUser42', msg:'Thank you so much!', time:'2m', unread:true },
+      { initials:'QS', color:'#DC2626', username:'@QuietStruggler', msg:'I tried the technique...', time:'15m', unread:true },
+      { initials:'PK', color:'#7C3AED', username:'@PeacefulKaylee', msg:'One more question...', time:'1h', unread:false },
+      { initials:'NW', color:'#059669', username:'@NightOwl88', msg:'See you at 3pm!', time:'2h', unread:false },
+      { initials:'BH', color:'#F97316', username:'@BrightHope22', msg:'Looking forward to it', time:'3h', unread:false }
+    ],
+
+    earnings: [
+      { label:'Video Session - @NightOwl88', date:'Mar 15, 2026', amount:'+$69' },
+      { label:'Video Session - @BrightHope22', date:'Mar 13, 2026', amount:'+$39' },
+      { label:'Video Session - @PeacefulKaylee', date:'Mar 11, 2026', amount:'+$69' },
+      { label:'Video Session - @QuietStruggler', date:'Mar 8, 2026', amount:'+$39' }
+    ],
+
+    adminNav: [
+      { id:'overview', icon:'📊', label:'Dashboard', screen:'admin-dashboard', badge:null },
+      { id:'applications', icon:'📋', label:'Applications', screen:'admin-applications', badge:'12' },
+      { id:'advisors', icon:'🎓', label:'All Advisors', screen:null, badge:null },
+      { id:'users', icon:'👥', label:'All Users', screen:null, badge:null },
+      { id:'reports', icon:'🚩', label:'Reports', screen:null, badge:'3' },
+      { id:'settings', icon:'⚙️', label:'Settings', screen:null, badge:null }
+    ],
+
+    adminStats: [
+      { icon:'📋', value:'12', label:'Pending Applications', bg:'#FEF3C7', change:'+3 today' },
+      { icon:'🎓', value:'248', label:'Active Advisors', bg:'#D1FAE5', change:'+5 this week' },
+      { icon:'👥', value:'14,820', label:'Registered Users', bg:'#DBEAFE', change:'+120 today' },
+      { icon:'💰', value:'$48,290', label:'Platform Revenue', bg:'#F3E8FF', change:'+$2,100 today' }
+    ],
+
+    adminApplications: [
+      { initials:'CA', color:'#0369A1', username:'@CareerAdvisorPro', realName:'Alexandra Chen', sector:'Career', qual:"Master's Degree", date:'Mar 14, 2026', docs:3, status:'Pending' },
+      { initials:'ZF', color:'#059669', username:'@ZenFinancePro', realName:'Marcus Johnson', sector:'Finance', qual:'CFA Certified', date:'Mar 13, 2026', docs:4, status:'Pending' },
+      { initials:'DR', color:'#7C3AED', username:'@DrResilience', realName:'Priya Sharma', sector:'Mental Health', qual:'PhD Psychology', date:'Mar 12, 2026', docs:3, status:'Approved' },
+      { initials:'LG', color:'#F97316', username:'@LifeGuideNow', realName:'Tom Bradley', sector:'Relationships', qual:'MA Counselling', date:'Mar 11, 2026', docs:2, status:'Pending' },
+      { initials:'MW', color:'#DC2626', username:'@MoneyWiseAdv', realName:'Sarah Williams', sector:'Finance', qual:'CFP Certified', date:'Mar 10, 2026', docs:4, status:'Rejected' },
+      { initials:'HC', color:'#0891B2', username:'@HolisticCoach', realName:'Emma Davis', sector:'Life Coaching', qual:'ICF PCC', date:'Mar 9, 2026', docs:3, status:'Approved' },
+      { initials:'RM', color:'#6366F1', username:'@RelationshipMD', realName:'David Park', sector:'Relationships', qual:'PhD Sociology', date:'Mar 8, 2026', docs:3, status:'Pending' }
+    ],
+
+    adminActivity: [
+      { icon:'✅', bg:'#D1FAE5', text:'@DrResilience application was approved by Admin', time:'10 minutes ago' },
+      { icon:'📝', bg:'#DBEAFE', text:'New application from @CareerAdvisorPro in Career sector', time:'2 hours ago' },
+      { icon:'🚩', bg:'#FEE2E2', text:'User @AnonymousUser89 flagged a chat as inappropriate', time:'3 hours ago' },
+      { icon:'💰', bg:'#F3E8FF', text:'$428 payout processed to 8 active advisors', time:'Yesterday' },
+      { icon:'👤', bg:'#FEF3C7', text:'120 new user registrations in the last 24 hours', time:'Yesterday' }
+    ],
+
+    bookDays: [
+      {label:'',date:'',disabled:true},{label:'',date:'',disabled:true},
+      {label:'1',date:'1',disabled:true},{label:'2',date:'2',disabled:true},{label:'3',date:'3',disabled:true},{label:'4',date:'4',disabled:true},{label:'5',date:'5',disabled:true},
+      {label:'6',date:'6',disabled:true},{label:'7',date:'7',disabled:true},{label:'8',date:'8',disabled:true},{label:'9',date:'9',disabled:true},{label:'10',date:'10',disabled:true},{label:'11',date:'11',disabled:true},{label:'12',date:'12',disabled:true},
+      {label:'13',date:'13',disabled:true},{label:'14',date:'14',disabled:true},{label:'15',date:'15',disabled:true},{label:'16',date:'16',disabled:true},{label:'17',date:'17',disabled:false},{label:'18',date:'18',disabled:false},{label:'19',date:'19',disabled:false},
+      {label:'20',date:'20',disabled:false},{label:'21',date:'21',disabled:false},{label:'22',date:'22',disabled:false},{label:'23',date:'23',disabled:false},{label:'24',date:'24',disabled:false},{label:'25',date:'25',disabled:false},{label:'26',date:'26',disabled:false},
+      {label:'27',date:'27',disabled:false},{label:'28',date:'28',disabled:false},{label:'29',date:'29',disabled:false},{label:'30',date:'30',disabled:false},{label:'31',date:'31',disabled:false}
+    ],
+
+    timeSlots: [
+      {t:'9:00 AM',taken:false},{t:'9:30 AM',taken:true},{t:'10:00 AM',taken:false},{t:'10:30 AM',taken:false},
+      {t:'11:00 AM',taken:true},{t:'11:30 AM',taken:false},{t:'2:00 PM',taken:false},{t:'2:30 PM',taken:false},
+      {t:'3:00 PM',taken:true},{t:'3:30 PM',taken:false},{t:'4:00 PM',taken:false},{t:'4:30 PM',taken:true}
+    ]
+  }
+}
+</script>
+</body>
+</html>

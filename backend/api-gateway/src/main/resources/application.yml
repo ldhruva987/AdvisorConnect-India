@@ -1,0 +1,85 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=1
+
+        - id: user-service
+          uri: ${USER_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - StripPrefix=1
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+
+        - id: advisor-service
+          uri: ${ADVISOR_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/advisors/**
+          filters:
+            - StripPrefix=1
+
+        - id: booking-service
+          uri: ${BOOKING_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/bookings/**
+          filters:
+            - StripPrefix=1
+
+        - id: chat-service-rest
+          uri: ${CHAT_SERVICE_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/chats/**
+          filters:
+            - StripPrefix=1
+
+        - id: chat-service-ws
+          uri: ${CHAT_WS_URL:ws://localhost:8085}
+          predicates:
+            - Path=/ws/**
+          filters:
+            - StripPrefix=1
+
+        - id: admin-service
+          uri: ${ADMIN_SERVICE_URL:http://localhost:8086}
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - StripPrefix=1
+
+      default-filters:
+        - name: AddRequestHeader
+          args:
+            name: X-Gateway-Version
+            value: "1.0"
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-here-make-it-long-enough}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway
+  endpoint:
+    health:
+      probes:
+        enabled: true

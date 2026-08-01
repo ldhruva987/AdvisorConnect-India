@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ac-common-config
+  namespace: advisorconnect-prod
+  labels:
+    app.kubernetes.io/part-of: advisorconnect
+data:
+  SPRING_PROFILES_ACTIVE: "kubernetes"
+  POSTGRES_HOST: "postgres.advisorconnect-infra.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: "acadmin"
+  REDIS_HOST: "redis-master.advisorconnect-infra.svc.cluster.local"
+  REDIS_PORT: "6379"
+  CASSANDRA_CONTACT_POINTS: "cassandra.advisorconnect-infra.svc.cluster.local"
+  CASSANDRA_PORT: "9042"
+  CASSANDRA_LOCAL_DC: "dc1"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka.advisorconnect-infra.svc.cluster.local:9092"
+  MINIO_ENDPOINT: "http://minio.advisorconnect-infra.svc.cluster.local:9000"
+  MINIO_ACCESS_KEY: "acminiouser"
+  MINIO_BUCKET_DOCUMENTS: "advisor-documents"
+  MAIL_HOST: "smtp.sendgrid.net"
+  MAIL_PORT: "587"
+  MAIL_FROM: "noreply@advisorconnect.io"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ac-auth-service-config
+  namespace: advisorconnect-prod
+data:
+  SERVER_PORT: "8081"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.advisorconnect-infra.svc.cluster.local:5432/auth_db"
+  JWT_EXPIRATION_MS: "900000"       # 15 min access token
+  REFRESH_TOKEN_TTL_SECONDS: "604800" # 7 days refresh token
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ac-user-service-config
+  namespace: advisorconnect-prod
+data:
+  SERVER_PORT: "8082"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.advisorconnect-infra.svc.cluster.local:5432/user_db"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ac-advisor-service-config
+  namespace: advisorconnect-prod
+data:
+  SERVER_PORT: "8083"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.advisorconnect-infra.svc.cluster.local:5432/advisor_db"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ac-chat-service-config
+  namespace: advisorconnect-prod
+data:
+  SERVER_PORT: "8085"
+  CASSANDRA_KEYSPACE: "chat_service"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ac-booking-service-config
+  namespace: advisorconnect-prod
+data:
+  SERVER_PORT: "8084"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.advisorconnect-infra.svc.cluster.local:5432/booking_db"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ac-admin-service-config
+  namespace: advisorconnect-prod
+data:
+  SERVER_PORT: "8086"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.advisorconnect-infra.svc.cluster.local:5432/admin_db"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ac-notification-service-config
+  namespace: advisorconnect-prod
+data:
+  SERVER_PORT: "8087"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ac-api-gateway-config
+  namespace: advisorconnect-prod
+data:
+  SERVER_PORT: "8080"
+  AUTH_SERVICE_URL: "http://auth-service.advisorconnect-prod.svc.cluster.local:8081"
+  USER_SERVICE_URL: "http://user-service.advisorconnect-prod.svc.cluster.local:8082"
+  ADVISOR_SERVICE_URL: "http://advisor-service.advisorconnect-prod.svc.cluster.local:8083"
+  BOOKING_SERVICE_URL: "http://booking-service.advisorconnect-prod.svc.cluster.local:8084"
+  CHAT_SERVICE_URL: "http://chat-service.advisorconnect-prod.svc.cluster.local:8085"
+  ADMIN_SERVICE_URL: "http://admin-service.advisorconnect-prod.svc.cluster.local:8086"

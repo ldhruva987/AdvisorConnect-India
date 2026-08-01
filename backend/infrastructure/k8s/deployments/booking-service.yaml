@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: booking-service
+  namespace: advisorconnect-prod
+  labels:
+    app: booking-service
+    app.kubernetes.io/part-of: advisorconnect
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: booking-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: booking-service
+    spec:
+      imagePullSecrets:
+        - name: ac-registry-secret
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: booking-service
+          image: your-registry/ac-booking-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - configMapRef:
+                name: ac-common-config
+            - configMapRef:
+                name: ac-booking-service-config
+          env:
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ac-app-secrets
+                  key: POSTGRES_PASSWORD
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ac-app-secrets
+                  key: STRIPE_SECRET_KEY
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ac-app-secrets
+                  key: STRIPE_WEBHOOK_SECRET
+          resources:
+            requests:
+              cpu: 150m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8084
+            initialDelaySeconds: 15
+            periodSeconds: 10

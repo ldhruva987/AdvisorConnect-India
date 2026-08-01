@@ -1,0 +1,19 @@
+server:
+  port: 7186
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:7432/admin_db
+    username: ${POSTGRES_USER:acadmin}
+    password: ${POSTGRES_PASSWORD:acpassword}
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 5
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+logging:
+  level:
+    com.advisorconnect: INFO

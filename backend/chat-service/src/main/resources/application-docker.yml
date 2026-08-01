@@ -1,0 +1,29 @@
+server:
+  port: 7185
+
+spring:
+  cassandra:
+    contact-points: ${CASSANDRA_CONTACT_POINTS:cassandra}
+    port: ${CASSANDRA_PORT:7942}
+    keyspace-name: ${CASSANDRA_KEYSPACE:chat_service}
+    local-datacenter: ${CASSANDRA_LOCAL_DC:dc1}
+    schema-action: create-if-not-exists
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:7379}
+      password: ${REDIS_PASSWORD:acredispass}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: chat-service-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+
+logging:
+  level:
+    com.advisorconnect: INFO
+    com.datastax: WARN
