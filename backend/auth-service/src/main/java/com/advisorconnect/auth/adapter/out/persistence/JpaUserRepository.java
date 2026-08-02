@@ -1,6 +1,7 @@
 package com.advisorconnect.auth.adapter.out.persistence;
 
 import com.advisorconnect.auth.domain.model.User;
+import com.advisorconnect.auth.domain.model.UserRole;
 import com.advisorconnect.auth.domain.port.out.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -32,5 +33,10 @@ public class JpaUserRepository implements UserRepository {
     @Override
     public boolean existsByEmail(String email) {
         return springDataUserRepository.existsByEmail(email);
+    }
+
+    @Override
+    public boolean existsByRole(UserRole role) {
+        return springDataUserRepository.existsByRole(role);
     }
 }

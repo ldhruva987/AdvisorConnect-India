@@ -1,51 +1,155 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle, Upload, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, CheckCircle, FileText, Upload, X } from 'lucide-react'
 import { Button } from '@/shared/components/ui/Button'
+import { ErrorBanner } from '@/shared/components/ui/ErrorBanner'
 import { Input, Textarea } from '@/shared/components/ui/Input'
 import { Modal } from '@/shared/components/ui/Modal'
 import { Navbar } from '@/shared/components/layout/Navbar'
+import {
+  uploadFileToPresignedUrl,
+  usePresignedUpload,
+} from '@/features/onboarding/hooks/usePresignedUpload'
+import { useSubmitApplication } from '@/features/onboarding/hooks/useSubmitApplication'
+import { getErrorMessage } from '@/lib/getErrorMessage'
+import { ALL_SECTORS, SECTOR_LABELS, type AdvisorSectorEnum } from '@/lib/sectors'
+import type { SubmitApplicationRequest, UploadDocType } from '@/types/api'
 
 const STEPS = ['Public Profile', 'Credentials', 'Identity Verification', 'Review & Submit']
 
-const SECTORS = [
-  'Career', 'Relationships', 'Finance', 'Mental Health',
-  'Life Coaching', 'Parenting', 'Health & Wellness', 'Business',
+/* -------------------------------------------------------------------------- */
+/* Document uploads                                                           */
+/* -------------------------------------------------------------------------- */
+
+const MB = 1024 * 1024
+
+type SlotId = 'degree' | 'license' | 'idFront' | 'idBack'
+
+interface UploadSlot {
+  id: SlotId
+  /** Subject of the validation sentence, e.g. "Degree / Certificate must be…". */
+  name: string
+  /** The input is visually hidden, so its accessible name comes from here. */
+  ariaLabel: string
+  docType: UploadDocType
+  accept: string
+  /**
+   * Enforced client-side as well as via `accept`. `accept` is only a file-picker
+   * filter — a drag-and-drop or a picker set to "All Files" walks straight past it.
+   */
+  mimeTypes: string[]
+  typeLabel: string
+  /** Must stay in step with the limit printed in the zone's helper copy. */
+  maxBytes: number
+  sizeLabel: string
+  required: boolean
+}
+
+/**
+ * The four document slots, mirroring the copy already in the wizard. `license`
+ * is the only optional one, per its "(optional)" label in step 2.
+ *
+ * A professional license is a credential rather than an identity document, so
+ * it shares `QUALIFICATION` with the degree; `UploadDocType` has no narrower
+ * value and `OTHER` would say strictly less about it.
+ */
+const UPLOAD_SLOTS: UploadSlot[] = [
+  {
+    id: 'degree',
+    name: 'Degree / Certificate',
+    ariaLabel: 'Upload degree or certificate',
+    docType: 'QUALIFICATION',
+    accept: 'application/pdf,image/jpeg,image/png',
+    mimeTypes: ['application/pdf', 'image/jpeg', 'image/png'],
+    typeLabel: 'PDF, JPG or PNG',
+    maxBytes: 10 * MB,
+    sizeLabel: '10MB',
+    required: true,
+  },
+  {
+    id: 'license',
+    name: 'License / Registration',
+    ariaLabel: 'Upload license or registration',
+    docType: 'QUALIFICATION',
+    accept: 'application/pdf,image/jpeg,image/png',
+    mimeTypes: ['application/pdf', 'image/jpeg', 'image/png'],
+    typeLabel: 'PDF, JPG or PNG',
+    maxBytes: 10 * MB,
+    sizeLabel: '10MB',
+    required: false,
+  },
+  {
+    id: 'idFront',
+    name: 'Government ID (front)',
+    ariaLabel: 'Upload government ID front side',
+    docType: 'ID_PROOF',
+    accept: 'image/jpeg,image/png',
+    mimeTypes: ['image/jpeg', 'image/png'],
+    typeLabel: 'JPG or PNG',
+    maxBytes: 5 * MB,
+    sizeLabel: '5MB',
+    required: true,
+  },
+  {
+    id: 'idBack',
+    name: 'Government ID (back)',
+    ariaLabel: 'Upload government ID back side',
+    docType: 'ID_PROOF',
+    accept: 'image/jpeg,image/png',
+    mimeTypes: ['image/jpeg', 'image/png'],
+    typeLabel: 'JPG or PNG',
+    maxBytes: 5 * MB,
+    sizeLabel: '5MB',
+    required: true,
+  },
 ]
 
-interface FormData {
-  username: string
-  title: string
-  bio: string
-  selectedSectors: string[]
-  languages: string
-  qualification: string
-  fieldOfStudy: string
-  experienceYears: string
-  previousWork: string
-  legalFirstName: string
-  legalLastName: string
-  dob: string
-  streetAddress: string
-  city: string
-  state: string
-  zip: string
-  country: string
-  idType: string
-  consentData: boolean
-  consentTerms: boolean
+const SLOTS_BY_ID = Object.fromEntries(UPLOAD_SLOTS.map((s) => [s.id, s])) as Record<
+  SlotId,
+  UploadSlot
+>
+
+const REQUIRED_SLOTS = UPLOAD_SLOTS.filter((s) => s.required)
+
+type FileMap = Record<SlotId, File | null>
+type ErrorMap = Record<SlotId, string | null>
+
+const NO_FILES: FileMap = { degree: null, license: null, idFront: null, idBack: null }
+const NO_ERRORS: ErrorMap = { degree: null, license: null, idFront: null, idBack: null }
+
+/** `1536` → `"1.5 KB"`. Rounded, because this is a reassurance, not an audit trail. */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < MB) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / MB).toFixed(1)} MB`
 }
+
+/** Returns a user-facing reason to reject, or `null` when the file is acceptable. */
+function validateFile(file: File, slot: UploadSlot): string | null {
+  if (!slot.mimeTypes.includes(file.type)) {
+    return `${slot.name} must be a ${slot.typeLabel} file.`
+  }
+  if (file.size > slot.maxBytes) {
+    return `${slot.name} is ${formatFileSize(file.size)} — the limit is ${slot.sizeLabel}.`
+  }
+  return null
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page                                                                       */
+/* -------------------------------------------------------------------------- */
 
 export function OnboardingPage() {
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(0)
   const [successOpen, setSuccessOpen] = useState(false)
 
-  const [form, setForm] = useState<FormData>({
+  const [form, setForm] = useState({
     username: '',
     title: '',
     bio: '',
-    selectedSectors: [],
+    // Backend vocabulary (`MENTAL_HEALTH`), rendered through `SECTOR_LABELS`.
+    selectedSectors: [] as AdvisorSectorEnum[],
     languages: '',
     qualification: '',
     fieldOfStudy: '',
@@ -64,17 +168,39 @@ export function OnboardingPage() {
     consentTerms: false,
   })
 
-  const update = (key: keyof FormData, value: string | boolean) => {
+  const [files, setFiles] = useState<FileMap>(NO_FILES)
+  const [fileErrors, setFileErrors] = useState<ErrorMap>(NO_ERRORS)
+  const [uploading, setUploading] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [applicationId, setApplicationId] = useState<string | null>(null)
+
+  const presignUpload = usePresignedUpload()
+  const submitApplication = useSubmitApplication()
+
+  const update = (key: keyof typeof form, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  const toggleSector = (sector: string) => {
+  const toggleSector = (sector: AdvisorSectorEnum) => {
     setForm((prev) => ({
       ...prev,
       selectedSectors: prev.selectedSectors.includes(sector)
         ? prev.selectedSectors.filter((s) => s !== sector)
         : [...prev.selectedSectors, sector],
     }))
+  }
+
+  const handleFileChange = (slot: UploadSlot, selected: File | undefined) => {
+    if (!selected) return
+    const error = validateFile(selected, slot)
+    // A rejected file must not silently replace an already-accepted one.
+    setFileErrors((prev) => ({ ...prev, [slot.id]: error }))
+    setFiles((prev) => ({ ...prev, [slot.id]: error ? null : selected }))
+  }
+
+  const clearFile = (slot: UploadSlot) => {
+    setFiles((prev) => ({ ...prev, [slot.id]: null }))
+    setFileErrors((prev) => ({ ...prev, [slot.id]: null }))
   }
 
   const handleContinue = () => {
@@ -85,14 +211,127 @@ export function OnboardingPage() {
     if (currentStep > 0) setCurrentStep((s) => s - 1)
   }
 
-  const handleSubmit = () => {
-    setSuccessOpen(true)
+  const missingRequired = REQUIRED_SLOTS.filter((slot) => !files[slot.id])
+  const busy = uploading || submitApplication.isPending
+  const canSubmit =
+    form.consentData && form.consentTerms && missingRequired.length === 0 && !busy
+
+  /**
+   * Presign → PUT → submit, in that order and strictly sequentially: the
+   * application body carries the object keys, so every upload has to have
+   * landed before `POST /advisors/apply` goes out.
+   */
+  const handleSubmit = async () => {
+    setSubmitError(null)
+
+    const pending = UPLOAD_SLOTS.map((slot) => ({ slot, file: files[slot.id] })).filter(
+      (entry): entry is { slot: UploadSlot; file: File } => entry.file !== null,
+    )
+
+    const documentS3Keys: string[] = []
+    setUploading(true)
+    try {
+      for (const { slot, file } of pending) {
+        const presigned = await presignUpload.mutateAsync({
+          fileName: file.name,
+          mimeType: file.type,
+          docType: slot.docType,
+        })
+        await uploadFileToPresignedUrl(file, presigned.uploadUrl)
+        documentS3Keys.push(presigned.objectKey)
+      }
+    } catch (err) {
+      setSubmitError(getErrorMessage(err))
+      return
+    } finally {
+      setUploading(false)
+    }
+
+    const body: SubmitApplicationRequest = {
+      username: form.username,
+      professionalTitle: form.title,
+      bio: form.bio,
+      sectors: form.selectedSectors,
+      qualification: form.qualification,
+      fieldOfStudy: form.fieldOfStudy,
+      experienceYears: form.experienceYears,
+      previousWork: form.previousWork.trim() || undefined,
+      legalFirstName: form.legalFirstName,
+      legalLastName: form.legalLastName,
+      dateOfBirth: form.dob,
+      // The backend takes one address string; the form collects it in parts.
+      addressFull: [form.streetAddress, form.city, form.state, form.zip]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join(', '),
+      country: form.country,
+      documentS3Keys,
+    }
+
+    try {
+      const id = await submitApplication.mutateAsync(body)
+      setApplicationId(id)
+      setSuccessOpen(true)
+    } catch (err) {
+      setSubmitError(getErrorMessage(err))
+    }
   }
 
   const stepClass = (i: number) => {
     if (i < currentStep) return 'step-done'
     if (i === currentStep) return 'step-active'
     return 'step-inactive'
+  }
+
+  /** The dashed drop zone, or the file chip once a file is accepted. */
+  const renderUploadSlot = (
+    slotId: SlotId,
+    zone: { className: string; children: ReactNode },
+  ) => {
+    const slot = SLOTS_BY_ID[slotId]
+    const file = files[slotId]
+    const error = fileErrors[slotId]
+
+    return (
+      <div>
+        {file ? (
+          <div className="flex items-center gap-3 rounded-xl border border-ink-200 bg-ink-50 px-3 py-2.5">
+            <FileText className="w-4 h-4 text-ink-400 flex-shrink-0" />
+            <div className="min-w-0 flex-1 text-left">
+              <p className="truncate text-sm font-medium text-ink-700">{file.name}</p>
+              <p className="text-xs text-ink-400">{formatFileSize(file.size)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => clearFile(slot)}
+              aria-label={`Remove ${file.name}`}
+              className="flex-shrink-0 w-7 h-7 rounded-lg text-ink-400 hover:text-danger-600 hover:bg-danger-100 flex items-center justify-center transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <label htmlFor={`upload-${slot.id}`} className={zone.className}>
+            {zone.children}
+          </label>
+        )}
+
+        <input
+          id={`upload-${slot.id}`}
+          type="file"
+          accept={slot.accept}
+          aria-label={slot.ariaLabel}
+          className="hidden"
+          onChange={(e) => handleFileChange(slot, e.target.files?.[0])}
+        />
+
+        {error && (
+          <p role="alert" className="mt-1.5 text-xs font-medium text-danger-600">
+            {error}
+          </p>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -136,10 +375,11 @@ export function OnboardingPage() {
               <p className="text-sm text-ink-500">This information will be visible to users browsing advisors.</p>
 
               <div>
-                <label className="block text-sm font-medium text-ink-700 mb-1.5">Username</label>
+                <label htmlFor="username" className="block text-sm font-medium text-ink-700 mb-1.5">Username</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 font-medium">@</span>
                   <input
+                    id="username"
                     type="text"
                     placeholder="YourHandle"
                     value={form.username}
@@ -167,7 +407,7 @@ export function OnboardingPage() {
               <div>
                 <label className="block text-sm font-medium text-ink-700 mb-2">Sectors (select all that apply)</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {SECTORS.map((sector) => (
+                  {ALL_SECTORS.map((sector) => (
                     <label
                       key={sector}
                       className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
@@ -182,7 +422,7 @@ export function OnboardingPage() {
                         onChange={() => toggleSector(sector)}
                         className="w-4 h-4 accent-oxblood-600 rounded"
                       />
-                      <span className="text-sm font-medium text-ink-700">{sector}</span>
+                      <span className="text-sm font-medium text-ink-700">{SECTOR_LABELS[sector]}</span>
                     </label>
                   ))}
                 </div>
@@ -205,8 +445,9 @@ export function OnboardingPage() {
               <p className="text-sm text-ink-500">These will be verified by our team before your profile goes live.</p>
 
               <div>
-                <label className="block text-sm font-medium text-ink-700 mb-1.5">Highest Qualification</label>
+                <label htmlFor="qualification" className="block text-sm font-medium text-ink-700 mb-1.5">Highest Qualification</label>
                 <select
+                  id="qualification"
                   value={form.qualification}
                   onChange={(e) => update('qualification', e.target.value)}
                   className="input-base"
@@ -229,8 +470,9 @@ export function OnboardingPage() {
               />
 
               <div>
-                <label className="block text-sm font-medium text-ink-700 mb-1.5">Years of Experience</label>
+                <label htmlFor="experience-years" className="block text-sm font-medium text-ink-700 mb-1.5">Years of Experience</label>
                 <select
+                  id="experience-years"
                   value={form.experienceYears}
                   onChange={(e) => update('experienceYears', e.target.value)}
                   className="input-base"
@@ -246,25 +488,37 @@ export function OnboardingPage() {
 
               {/* Degree upload */}
               <div>
-                <label className="block text-sm font-medium text-ink-700 mb-1.5">
+                <label htmlFor="upload-degree" className="block text-sm font-medium text-ink-700 mb-1.5">
                   Upload Degree / Certificate <span className="text-danger-600">*</span>
                 </label>
-                <div className="border-2 border-dashed border-ink-200 rounded-xl p-8 text-center hover:border-oxblood-700 hover:bg-oxblood-50 transition-all cursor-pointer">
-                  <Upload className="w-8 h-8 text-ink-400 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-ink-700 mb-1">Click to upload or drag & drop</p>
-                  <p className="text-xs text-ink-400">PDF, JPG, PNG up to 10MB</p>
-                </div>
+                {renderUploadSlot('degree', {
+                  className:
+                    'block border-2 border-dashed border-ink-200 rounded-xl p-8 text-center hover:border-oxblood-700 hover:bg-oxblood-50 transition-all cursor-pointer',
+                  children: (
+                    <>
+                      <Upload className="w-8 h-8 text-ink-400 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-ink-700 mb-1">Click to upload or drag & drop</p>
+                      <p className="text-xs text-ink-400">PDF, JPG, PNG up to 10MB</p>
+                    </>
+                  ),
+                })}
               </div>
 
               {/* License upload (optional) */}
               <div>
-                <label className="block text-sm font-medium text-ink-700 mb-1.5">
+                <label htmlFor="upload-license" className="block text-sm font-medium text-ink-700 mb-1.5">
                   Upload License / Registration <span className="text-ink-400 font-normal">(optional)</span>
                 </label>
-                <div className="border-2 border-dashed border-ink-100 rounded-xl p-5 text-center hover:border-ink-300 transition-all cursor-pointer">
-                  <Upload className="w-6 h-6 text-ink-300 mx-auto mb-1" />
-                  <p className="text-xs text-ink-400">PDF, JPG, PNG up to 10MB</p>
-                </div>
+                {renderUploadSlot('license', {
+                  className:
+                    'block border-2 border-dashed border-ink-100 rounded-xl p-5 text-center hover:border-ink-300 transition-all cursor-pointer',
+                  children: (
+                    <>
+                      <Upload className="w-6 h-6 text-ink-300 mx-auto mb-1" />
+                      <p className="text-xs text-ink-400">PDF, JPG, PNG up to 10MB</p>
+                    </>
+                  ),
+                })}
               </div>
 
               <Textarea
@@ -344,8 +598,9 @@ export function OnboardingPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-ink-700 mb-1.5">Country</label>
+                <label htmlFor="country" className="block text-sm font-medium text-ink-700 mb-1.5">Country</label>
                 <select
+                  id="country"
                   value={form.country}
                   onChange={(e) => update('country', e.target.value)}
                   className="input-base"
@@ -363,8 +618,9 @@ export function OnboardingPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-ink-700 mb-1.5">Government ID Type</label>
+                <label htmlFor="id-type" className="block text-sm font-medium text-ink-700 mb-1.5">Government ID Type</label>
                 <select
+                  id="id-type"
                   value={form.idType}
                   onChange={(e) => update('idType', e.target.value)}
                   className="input-base"
@@ -378,18 +634,32 @@ export function OnboardingPage() {
 
               {/* ID upload — front and back */}
               <div>
-                <label className="block text-sm font-medium text-ink-700 mb-2">Upload Government ID</label>
+                <label className="block text-sm font-medium text-ink-700 mb-2">
+                  Upload Government ID <span className="text-danger-600">*</span>
+                </label>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="border-2 border-dashed border-ink-200 rounded-xl p-5 text-center hover:border-oxblood-700 hover:bg-oxblood-50 transition-all cursor-pointer">
-                    <Upload className="w-6 h-6 text-ink-400 mx-auto mb-1.5" />
-                    <p className="text-xs font-medium text-ink-600">Front Side</p>
-                    <p className="text-xs text-ink-400 mt-0.5">JPG, PNG up to 5MB</p>
-                  </div>
-                  <div className="border-2 border-dashed border-ink-200 rounded-xl p-5 text-center hover:border-oxblood-700 hover:bg-oxblood-50 transition-all cursor-pointer">
-                    <Upload className="w-6 h-6 text-ink-400 mx-auto mb-1.5" />
-                    <p className="text-xs font-medium text-ink-600">Back Side</p>
-                    <p className="text-xs text-ink-400 mt-0.5">JPG, PNG up to 5MB</p>
-                  </div>
+                  {renderUploadSlot('idFront', {
+                    className:
+                      'block border-2 border-dashed border-ink-200 rounded-xl p-5 text-center hover:border-oxblood-700 hover:bg-oxblood-50 transition-all cursor-pointer',
+                    children: (
+                      <>
+                        <Upload className="w-6 h-6 text-ink-400 mx-auto mb-1.5" />
+                        <p className="text-xs font-medium text-ink-600">Front Side</p>
+                        <p className="text-xs text-ink-400 mt-0.5">JPG, PNG up to 5MB</p>
+                      </>
+                    ),
+                  })}
+                  {renderUploadSlot('idBack', {
+                    className:
+                      'block border-2 border-dashed border-ink-200 rounded-xl p-5 text-center hover:border-oxblood-700 hover:bg-oxblood-50 transition-all cursor-pointer',
+                    children: (
+                      <>
+                        <Upload className="w-6 h-6 text-ink-400 mx-auto mb-1.5" />
+                        <p className="text-xs font-medium text-ink-600">Back Side</p>
+                        <p className="text-xs text-ink-400 mt-0.5">JPG, PNG up to 5MB</p>
+                      </>
+                    ),
+                  })}
                 </div>
               </div>
             </div>
@@ -410,7 +680,10 @@ export function OnboardingPage() {
                 <div className="space-y-1.5 text-sm text-ink-600">
                   <p><span className="text-ink-400">Username:</span> @{form.username || 'Not set'}</p>
                   <p><span className="text-ink-400">Title:</span> {form.title || 'Not set'}</p>
-                  <p><span className="text-ink-400">Sectors:</span> {form.selectedSectors.join(', ') || 'None selected'}</p>
+                  <p>
+                    <span className="text-ink-400">Sectors:</span>{' '}
+                    {form.selectedSectors.map((s) => SECTOR_LABELS[s]).join(', ') || 'None selected'}
+                  </p>
                   <p><span className="text-ink-400">Languages:</span> {form.languages || 'Not set'}</p>
                 </div>
               </div>
@@ -426,6 +699,34 @@ export function OnboardingPage() {
                   <p><span className="text-ink-400">Field of Study:</span> {form.fieldOfStudy || 'Not set'}</p>
                   <p><span className="text-ink-400">Experience:</span> {form.experienceYears || 'Not set'}</p>
                 </div>
+              </div>
+
+              {/* Documents summary */}
+              <div className="border border-ink-200 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-ink-800">Documents</h3>
+                  <button onClick={() => setCurrentStep(1)} className="text-xs text-oxblood-700 font-medium hover:text-oxblood-600">Edit</button>
+                </div>
+                <ul className="space-y-1.5 text-sm text-ink-600">
+                  {UPLOAD_SLOTS.map((slot) => {
+                    const file = files[slot.id]
+                    return (
+                      <li key={slot.id} className="flex items-center gap-2">
+                        <span className="text-ink-400">{slot.name}:</span>
+                        {file ? (
+                          <span className="truncate">
+                            {file.name}{' '}
+                            <span className="text-ink-400">({formatFileSize(file.size)})</span>
+                          </span>
+                        ) : (
+                          <span className={slot.required ? 'text-danger-600 font-medium' : 'text-ink-400'}>
+                            {slot.required ? 'Required — not uploaded' : 'Not uploaded'}
+                          </span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
               </div>
 
               {/* Identity summary (private) */}
@@ -470,13 +771,23 @@ export function OnboardingPage() {
                   </span>
                 </label>
               </div>
+
+              {/* Why the submit button is still disabled */}
+              {missingRequired.length > 0 && (
+                <p className="text-xs text-ink-500">
+                  Upload the required documents before submitting:{' '}
+                  {missingRequired.map((slot) => slot.name).join(', ')}.
+                </p>
+              )}
+
+              {submitError && <ErrorBanner message={submitError} />}
             </div>
           )}
 
           {/* Navigation buttons */}
           <div className="flex justify-between mt-8 pt-6 border-t border-ink-100">
             {currentStep > 0 ? (
-              <Button variant="outline" onClick={handleBack}>Back</Button>
+              <Button variant="outline" onClick={handleBack} disabled={busy}>Back</Button>
             ) : (
               <div />
             )}
@@ -487,10 +798,15 @@ export function OnboardingPage() {
             ) : (
               <Button
                 variant="success"
-                onClick={handleSubmit}
-                disabled={!form.consentData || !form.consentTerms}
+                onClick={() => void handleSubmit()}
+                disabled={!canSubmit}
+                loading={busy}
               >
-                Submit Application
+                {uploading
+                  ? 'Uploading documents…'
+                  : submitApplication.isPending
+                    ? 'Submitting…'
+                    : 'Submit Application'}
               </Button>
             )}
           </div>
@@ -507,6 +823,12 @@ export function OnboardingPage() {
           <p className="text-ink-500 mb-6 leading-relaxed">
             Thank you for applying to become an AdvisorConnect advisor. Our compliance team will review your application within <span className="font-semibold text-ink-900">2–3 business days</span>.
           </p>
+          {/* The endpoint returns the new application's UUID and nothing else. */}
+          {applicationId && (
+            <p className="text-sm text-ink-500 mb-4">
+              Reference ID: <span className="font-mono text-ink-800">{applicationId}</span>
+            </p>
+          )}
           <p className="text-sm text-ink-400 mb-6">
             You'll receive an email notification once your application has been reviewed. Keep an eye on your inbox!
           </p>

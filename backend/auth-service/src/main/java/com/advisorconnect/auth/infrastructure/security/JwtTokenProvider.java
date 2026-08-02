@@ -34,6 +34,11 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    /** Configured access-token lifetime in milliseconds, so callers can report it accurately. */
+    public long getAccessTokenExpiryMs() {
+        return accessTokenExpiryMs;
+    }
+
     public String generateRefreshToken() {
         return UUID.randomUUID().toString();
     }

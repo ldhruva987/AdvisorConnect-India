@@ -1,82 +1,309 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Home, MessageCircle, Video, DollarSign, Settings,
-  TrendingUp, ArrowLeft, Search, Star,
+  ArrowLeft, Search, Inbox, CalendarClock,
 } from 'lucide-react'
 import { Avatar } from '@/shared/components/ui/Avatar'
 import { Badge } from '@/shared/components/ui/Badge'
 import { Card, CardHeader } from '@/shared/components/ui/Card'
+import { EmptyState } from '@/shared/components/ui/EmptyState'
+import { ErrorBanner } from '@/shared/components/ui/ErrorBanner'
 import { Input } from '@/shared/components/ui/Input'
+import { Skeleton } from '@/shared/components/ui/Skeleton'
+import { useConversations } from '@/features/chat/hooks/useConversations'
+import { useMyBookings } from '@/features/booking/hooks/useMyBookings'
+import { bySessionDateAscending, formatBookingAmount, isUpcoming } from '@/lib/bookingDisplay'
+import { formatConversationTime, formatSessionDate, formatSessionTime } from '@/lib/formatDateTime'
+import { getErrorMessage } from '@/lib/getErrorMessage'
+import { useNow } from '@/shared/hooks/useNow'
+import type { Booking, Conversation } from '@/types'
 
 type Tab = 'overview' | 'chats' | 'sessions' | 'earnings' | 'settings'
 
-const STATS = [
-  { label: 'Total Chats', value: '1,247', delta: '+12%', color: 'text-oxblood-700', bg: 'bg-oxblood-50' },
-  { label: 'Video Sessions', value: '89', delta: '+8%', color: 'text-pine-600', bg: 'bg-pine-100' },
-  { label: 'Avg Rating', value: '4.9', delta: 'Excellent', color: 'text-warn-600', bg: 'bg-warn-100' },
-  { label: 'This Month', value: '$1,248', delta: '+18%', color: 'text-ink-700', bg: 'bg-ink-100' },
-]
+/** How many rows the overview previews before the dedicated tab takes over. */
+const PREVIEW_ROWS = 4
 
-const ACTIVE_CHATS = [
-  { id: '1', username: '@AnxiousAnna', color: '#784f00', lastMessage: 'Thank you so much, that really helps!', time: '2m ago', unread: 2 },
-  { id: '2', username: '@OverwhelmedOliver', color: '#516000', lastMessage: 'Can we schedule a follow-up session?', time: '15m ago', unread: 1 },
-  { id: '3', username: '@StressedSophia', color: '#006970', lastMessage: 'I tried the breathing exercise and it worked!', time: '1h ago', unread: 0 },
-]
+function ConversationRowSkeleton() {
+  return (
+    <div className="flex items-center gap-3 p-4" role="status" aria-label="Loading conversations">
+      <Skeleton className="w-10 h-10 rounded-full flex-shrink-0" />
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-3 w-2/5" />
+        <Skeleton className="h-3 w-4/5" />
+      </div>
+    </div>
+  )
+}
 
-const UPCOMING_SESSIONS = [
-  { id: '1', username: '@AnxiousAnna', color: '#784f00', date: 'Today', time: '3:00 PM', duration: 30, amount: 39 },
-  { id: '2', username: '@FirstTimeBuyerJoe', color: '#005e8f', date: 'Mar 18', time: '11:00 AM', duration: 60, amount: 69 },
-]
+function SessionRowSkeleton() {
+  return (
+    <div className="flex items-center gap-3 p-4" role="status" aria-label="Loading sessions">
+      <Skeleton className="w-10 h-10 rounded-xl flex-shrink-0" />
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-3 w-1/3" />
+        <Skeleton className="h-3 w-1/2" />
+      </div>
+      <Skeleton className="h-4 w-14" />
+    </div>
+  )
+}
 
-const CONVERSATIONS = [
-  { id: '1', username: '@AnxiousAnna', color: '#784f00', lastMessage: 'Thank you so much, that really helps!', time: '2m ago', status: 'active' },
-  { id: '2', username: '@OverwhelmedOliver', color: '#516000', lastMessage: 'Can we schedule a follow-up session?', time: '15m ago', status: 'active' },
-  { id: '3', username: '@StressedSophia', color: '#006970', lastMessage: 'I tried the breathing exercise and it worked!', time: '1h ago', status: 'resolved' },
-  { id: '4', username: '@WorriedWendy', color: '#4d4f94', lastMessage: 'Is it normal to feel this way after CBT?', time: '2h ago', status: 'active' },
-  { id: '5', username: '@BurnedOutBen', color: '#73417e', lastMessage: 'I really needed to hear that, thank you.', time: 'Yesterday', status: 'resolved' },
-]
+/**
+ * One conversation row.
+ *
+ * NOTE ON NAMING: `ConversationDto` is user-centric — it carries
+ * `advisorUsername`/`advisorColor` and no field for the *other* participant.
+ * On an advisor's own dashboard the counterpart is the client, but the
+ * contract does not expose them, so the row shows the only participant the
+ * payload names. When chat-service ships its REST layer (backend Phase 8) with
+ * a symmetric participant field, this reads that instead. Inventing a client
+ * name here would be worse than showing the field that actually exists.
+ */
+function ConversationRow({ conversation }: { conversation: Conversation }) {
+  return (
+    <Link
+      to={`/chat/${conversation.advisorId}`}
+      className="flex items-center gap-3 p-4 hover:bg-ink-50 transition-colors"
+    >
+      <Avatar
+        username={conversation.advisorUsername}
+        color={conversation.advisorColor}
+        size="md"
+        showOnline={conversation.isAdvisorOnline}
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2 mb-0.5">
+          <p className="text-sm font-semibold text-ink-900 truncate">
+            {conversation.advisorUsername}
+          </p>
+          <p className="text-xs text-ink-400 flex-shrink-0">
+            {formatConversationTime(conversation.lastMessageAt)}
+          </p>
+        </div>
+        <p className="text-xs text-ink-500 truncate">{conversation.lastMessage}</p>
+      </div>
+      {conversation.unreadCount > 0 && (
+        <span
+          aria-label={`${conversation.unreadCount} unread messages`}
+          className="w-5 h-5 flex-shrink-0 bg-oxblood-700 text-white text-xs font-bold rounded-full flex items-center justify-center"
+        >
+          {conversation.unreadCount}
+        </span>
+      )}
+    </Link>
+  )
+}
 
-const TRANSACTIONS = [
-  { id: '1', label: 'Video Session — @AnxiousAnna', date: 'Mar 15, 2026', amount: '+$39' },
-  { id: '2', label: 'Video Session — @OverwhelmedOliver', date: 'Mar 13, 2026', amount: '+$69' },
-  { id: '3', label: 'Video Session — @StressedSophia', date: 'Mar 11, 2026', amount: '+$39' },
-  { id: '4', label: 'Video Session — @WorriedWendy', date: 'Mar 9, 2026', amount: '+$69' },
-]
-
-const NAV_ITEMS: { id: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
-  { id: 'overview', icon: <Home className="w-4 h-4" />, label: 'Overview' },
-  { id: 'chats', icon: <MessageCircle className="w-4 h-4" />, label: 'Chats', badge: 3 },
-  { id: 'sessions', icon: <Video className="w-4 h-4" />, label: 'Sessions' },
-  { id: 'earnings', icon: <DollarSign className="w-4 h-4" />, label: 'Earnings' },
-  { id: 'settings', icon: <Settings className="w-4 h-4" />, label: 'Profile Settings' },
-]
+function SessionRow({ booking }: { booking: Booking }) {
+  return (
+    <div className="flex items-center gap-3 p-4">
+      <div className="w-10 h-10 bg-oxblood-50 rounded-xl flex items-center justify-center flex-shrink-0">
+        <Video className="w-5 h-5 text-oxblood-700" aria-hidden="true" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-ink-900 truncate">{booking.advisorUsername}</p>
+        <p className="text-xs text-ink-400">
+          {formatSessionDate(booking.sessionDate)} · {formatSessionTime(booking.sessionDate)} ·{' '}
+          {booking.durationMinutes} min
+        </p>
+      </div>
+      <span className="font-bold text-pine-600 flex-shrink-0">
+        {formatBookingAmount(booking.amountCharged)}
+      </span>
+    </div>
+  )
+}
 
 export function AdvisorDashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [chatSearch, setChatSearch] = useState('')
 
+  const now = useNow()
+
+  const conversationsQuery = useConversations()
+  const bookingsQuery = useMyBookings()
+
+  const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data])
+  const bookings = useMemo(() => bookingsQuery.data ?? [], [bookingsQuery.data])
+
+  /**
+   * `now` comes from `useNow` rather than module scope so a long-lived tab
+   * doesn't keep classifying a session that has already started as "upcoming"
+   * against a stale clock.
+   */
+  const upcomingSessions = useMemo(
+    () =>
+      bookings.filter((booking) => isUpcoming(booking, now)).sort(bySessionDateAscending),
+    [bookings, now],
+  )
+
+  const unreadTotal = useMemo(
+    () => conversations.reduce((sum, conversation) => sum + conversation.unreadCount, 0),
+    [conversations],
+  )
+
+  const filteredConversations = useMemo(() => {
+    const query = chatSearch.trim().toLowerCase()
+    if (!query) return conversations
+    return conversations.filter((c) => c.advisorUsername.toLowerCase().includes(query))
+  }, [conversations, chatSearch])
+
+  /**
+   * Every tile is a count derived from data the API actually returned. The old
+   * "Avg Rating 4.9" and "This Month $1,248" tiles are gone: no endpoint
+   * serves an advisor's rating aggregate or earnings, and a fabricated figure
+   * on a money dashboard is the least acceptable kind of placeholder.
+   */
+  const statTiles = [
+    {
+      label: 'Conversations',
+      value: conversationsQuery.isSuccess ? conversations.length : null,
+      color: 'text-oxblood-700',
+      bg: 'bg-oxblood-50',
+    },
+    {
+      label: 'Unread Messages',
+      value: conversationsQuery.isSuccess ? unreadTotal : null,
+      color: 'text-warn-600',
+      bg: 'bg-warn-100',
+    },
+    {
+      label: 'Upcoming Sessions',
+      value: bookingsQuery.isSuccess ? upcomingSessions.length : null,
+      color: 'text-pine-600',
+      bg: 'bg-pine-100',
+    },
+  ]
+
+  const navItems: { id: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
+    { id: 'overview', icon: <Home className="w-4 h-4" />, label: 'Overview' },
+    {
+      id: 'chats',
+      icon: <MessageCircle className="w-4 h-4" />,
+      label: 'Chats',
+      // Real unread total, not the hardcoded "3" the old sidebar always showed.
+      badge: unreadTotal > 0 ? unreadTotal : undefined,
+    },
+    { id: 'sessions', icon: <Video className="w-4 h-4" />, label: 'Sessions' },
+    { id: 'earnings', icon: <DollarSign className="w-4 h-4" />, label: 'Earnings' },
+    { id: 'settings', icon: <Settings className="w-4 h-4" />, label: 'Profile Settings' },
+  ]
+
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+
+  /** Conversation list body, shared by the overview preview and the Chats tab. */
+  const renderConversations = (list: Conversation[], emptyDescription: string) => {
+    if (conversationsQuery.isLoading) {
+      return (
+        <div className="divide-y divide-ink-100">
+          {Array.from({ length: 3 }, (_, i) => <ConversationRowSkeleton key={i} />)}
+        </div>
+      )
+    }
+
+    if (conversationsQuery.isError) {
+      return (
+        <div className="p-4">
+          <ErrorBanner
+            message={getErrorMessage(conversationsQuery.error)}
+            onRetry={() => void conversationsQuery.refetch()}
+          />
+        </div>
+      )
+    }
+
+    if (list.length === 0) {
+      return (
+        <EmptyState
+          icon={<Inbox className="w-8 h-8" />}
+          title="No conversations"
+          description={emptyDescription}
+          className="py-12"
+        />
+      )
+    }
+
+    return (
+      <div className="divide-y divide-ink-100">
+        {list.map((conversation) => (
+          <ConversationRow key={conversation.id} conversation={conversation} />
+        ))}
+      </div>
+    )
+  }
+
+  /** Upcoming-session list body, shared by the overview preview and the Sessions tab. */
+  const renderSessions = (list: Booking[]) => {
+    if (bookingsQuery.isLoading) {
+      return (
+        <div className="divide-y divide-ink-100">
+          {Array.from({ length: 2 }, (_, i) => <SessionRowSkeleton key={i} />)}
+        </div>
+      )
+    }
+
+    if (bookingsQuery.isError) {
+      return (
+        <div className="p-4">
+          <ErrorBanner
+            message={getErrorMessage(bookingsQuery.error)}
+            onRetry={() => void bookingsQuery.refetch()}
+          />
+        </div>
+      )
+    }
+
+    if (list.length === 0) {
+      return (
+        <EmptyState
+          icon={<CalendarClock className="w-8 h-8" />}
+          title="No upcoming sessions"
+          description="Booked video sessions will appear here."
+          className="py-12"
+        />
+      )
+    }
+
+    return (
+      <div className="divide-y divide-ink-100">
+        {list.map((booking) => (
+          <SessionRow key={booking.id} booking={booking} />
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-screen bg-ink-50 overflow-hidden">
       {/* Sidebar */}
       <aside className="w-60 bg-white border-r border-ink-200 flex flex-col flex-shrink-0">
-        {/* Advisor summary */}
+        {/*
+          The old header rendered "@MindfulRohan", a "Licensed Clinical
+          Psychologist" title and a 4.9 rating for whoever happened to be
+          logged in. Nothing serves the signed-in advisor's own profile yet
+          (`authStore` holds an id and a role, no username), so the panel
+          names the surface instead of inventing a person.
+        */}
         <div className="p-5 border-b border-ink-100">
-          <div className="flex items-center gap-3 mb-3">
-            <Avatar username="@MindfulRohan" color="#8a3f24" size="md" showOnline />
-            <div className="min-w-0">
-              <p className="font-semibold text-ink-900 text-sm truncate">@MindfulRohan</p>
-              <Badge variant="live" className="mt-0.5">● Active</Badge>
-            </div>
-          </div>
+          <p className="text-xs font-semibold text-ink-400 uppercase tracking-wider mb-1">
+            Advisor
+          </p>
+          <p className="font-heading font-medium text-lg text-ink-900">Your dashboard</p>
         </div>
 
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-1">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
+              aria-current={activeTab === item.id ? 'page' : undefined}
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 activeTab === item.id
                   ? 'bg-oxblood-50 text-oxblood-700'
@@ -87,8 +314,8 @@ export function AdvisorDashboardPage() {
                 {item.icon}
                 {item.label}
               </div>
-              {item.badge && (
-                <span className="w-5 h-5 bg-oxblood-700 text-white text-xs font-bold rounded-full flex items-center justify-center">
+              {item.badge !== undefined && (
+                <span className="min-w-5 h-5 px-1 bg-oxblood-700 text-white text-xs font-bold rounded-full flex items-center justify-center">
                   {item.badge}
                 </span>
               )}
@@ -113,78 +340,51 @@ export function AdvisorDashboardPage() {
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div>
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="font-heading font-medium text-2xl text-ink-900">Welcome back, Rohan!</h1>
-                <p className="text-ink-500 text-sm mt-0.5">Here's what's happening today.</p>
-              </div>
-              <Badge variant="live">● Profile Live</Badge>
+            <div className="mb-6">
+              <h1 className="font-heading font-medium text-2xl text-ink-900">Overview</h1>
+              <p className="text-ink-500 text-sm mt-0.5">{today}</p>
             </div>
 
-            {/* Stat cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              {STATS.map((stat) => (
-                <div key={stat.label} className={`${stat.bg} rounded-xl p-5`}>
-                  <p className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-1">{stat.label}</p>
-                  <p className={`font-heading font-medium text-2xl ${stat.color}`}>{stat.value}</p>
-                  <p className="text-xs text-ink-500 mt-1 flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3" />
-                    {stat.delta}
+            {/* Stat tiles */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              {statTiles.map((tile) => (
+                <div key={tile.label} className={`${tile.bg} rounded-xl p-5`}>
+                  <p className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-1">
+                    {tile.label}
                   </p>
+                  {tile.value === null ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <p className={`font-heading font-medium text-2xl ${tile.color}`}>
+                      {tile.value.toLocaleString('en-US')}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
 
-            {/* Two-column grid */}
             <div className="grid lg:grid-cols-2 gap-5">
-              {/* Active chats */}
               <Card padding="none">
                 <CardHeader>
-                  <h2 className="font-semibold text-ink-900">Active Chats</h2>
-                  <Badge variant="brand">{ACTIVE_CHATS.length}</Badge>
+                  <h2 className="font-semibold text-ink-900">Recent Conversations</h2>
+                  {conversationsQuery.isSuccess && conversations.length > 0 && (
+                    <Badge variant="brand">{conversations.length}</Badge>
+                  )}
                 </CardHeader>
-                <div className="divide-y divide-ink-100">
-                  {ACTIVE_CHATS.map((chat) => (
-                    <div key={chat.id} className="flex items-center gap-3 p-4">
-                      <Avatar username={chat.username} color={chat.color} size="sm" showOnline />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-ink-900">{chat.username}</p>
-                        <p className="text-xs text-ink-400 truncate">{chat.lastMessage}</p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-xs text-ink-400">{chat.time}</p>
-                        {chat.unread > 0 && (
-                          <span className="inline-flex w-5 h-5 bg-oxblood-700 text-white text-xs font-bold rounded-full items-center justify-center mt-1">
-                            {chat.unread}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {renderConversations(
+                  conversations.slice(0, PREVIEW_ROWS),
+                  'Messages from people you advise will show up here.',
+                )}
               </Card>
 
-              {/* Upcoming sessions */}
               <Card padding="none">
                 <CardHeader>
                   <h2 className="font-semibold text-ink-900">Upcoming Sessions</h2>
-                  <Badge variant="brand">{UPCOMING_SESSIONS.length}</Badge>
+                  {bookingsQuery.isSuccess && upcomingSessions.length > 0 && (
+                    <Badge variant="brand">{upcomingSessions.length}</Badge>
+                  )}
                 </CardHeader>
-                <div className="divide-y divide-ink-100">
-                  {UPCOMING_SESSIONS.map((session) => (
-                    <div key={session.id} className="flex items-center gap-3 p-4">
-                      <Avatar username={session.username} color={session.color} size="sm" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-ink-900">{session.username}</p>
-                        <p className="text-xs text-ink-400">{session.date} · {session.time}</p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-bold text-pine-600">${session.amount}</p>
-                        <p className="text-xs text-ink-400">{session.duration}min</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {renderSessions(upcomingSessions.slice(0, PREVIEW_ROWS))}
               </Card>
             </div>
           </div>
@@ -196,6 +396,9 @@ export function AdvisorDashboardPage() {
             <h1 className="font-heading font-medium text-2xl text-ink-900 mb-5">My Chats</h1>
             <div className="max-w-md mb-4">
               <Input
+                // Labelled for screen readers without a visible label, which
+                // the surrounding layout has no room for.
+                aria-label="Search conversations"
                 placeholder="Search conversations..."
                 value={chatSearch}
                 onChange={(e) => setChatSearch(e.target.value)}
@@ -203,25 +406,12 @@ export function AdvisorDashboardPage() {
               />
             </div>
             <Card padding="none">
-              <div className="divide-y divide-ink-100">
-                {CONVERSATIONS.filter((c) =>
-                  c.username.toLowerCase().includes(chatSearch.toLowerCase())
-                ).map((chat) => (
-                  <div key={chat.id} className="flex items-center gap-3 p-4 hover:bg-ink-50 transition-colors">
-                    <Avatar username={chat.username} color={chat.color} size="md" showOnline={chat.status === 'active'} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <p className="text-sm font-semibold text-ink-900">{chat.username}</p>
-                        <p className="text-xs text-ink-400">{chat.time}</p>
-                      </div>
-                      <p className="text-xs text-ink-500 truncate">{chat.lastMessage}</p>
-                    </div>
-                    <Badge variant={chat.status === 'active' ? 'success' : 'default'}>
-                      {chat.status === 'active' ? 'Active' : 'Resolved'}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
+              {renderConversations(
+                filteredConversations,
+                chatSearch.trim()
+                  ? 'No conversation matches that search.'
+                  : 'Messages from people you advise will show up here.',
+              )}
             </Card>
           </div>
         )}
@@ -234,21 +424,14 @@ export function AdvisorDashboardPage() {
               <CardHeader>
                 <h2 className="font-semibold text-ink-900">Upcoming Sessions</h2>
               </CardHeader>
-              <div className="divide-y divide-ink-100">
-                {UPCOMING_SESSIONS.map((session) => (
-                  <div key={session.id} className="flex items-center gap-3 p-5">
-                    <div className="w-10 h-10 bg-oxblood-50 rounded-xl flex items-center justify-center">
-                      <Video className="w-5 h-5 text-oxblood-700" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-ink-900 text-sm">{session.username}</p>
-                      <p className="text-xs text-ink-400">{session.date} · {session.time} · {session.duration} min</p>
-                    </div>
-                    <span className="font-bold text-pine-600">${session.amount}</span>
-                  </div>
-                ))}
-              </div>
+              {renderSessions(upcomingSessions)}
             </Card>
+            {/*
+              Past sessions are deliberately not a second list here: `GET
+              /bookings/me` returns everything, but a "history" tab implies
+              per-session artefacts (recordings, notes, receipts) that no
+              endpoint serves. The upcoming filter is the honest slice.
+            */}
           </div>
         )}
 
@@ -256,37 +439,19 @@ export function AdvisorDashboardPage() {
         {activeTab === 'earnings' && (
           <div>
             <h1 className="font-heading font-medium text-2xl text-ink-900 mb-5">Earnings</h1>
-
-            {/* Metric cards */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              {[
-                { label: 'This Month', value: '$1,248', color: 'text-pine-600' },
-                { label: 'Total Earnings', value: '$8,920', color: 'text-oxblood-700' },
-                { label: 'Pending Payout', value: '$428', color: 'text-warn-600' },
-              ].map((m) => (
-                <div key={m.label} className="bg-white rounded-xl border border-ink-200 p-5">
-                  <p className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-1">{m.label}</p>
-                  <p className={`font-heading font-medium text-2xl ${m.color}`}>{m.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Transactions table */}
-            <Card padding="none">
-              <CardHeader>
-                <h2 className="font-semibold text-ink-900">Recent Transactions</h2>
-              </CardHeader>
-              <div className="divide-y divide-ink-100">
-                {TRANSACTIONS.map((tx) => (
-                  <div key={tx.id} className="flex items-center justify-between p-4">
-                    <div>
-                      <p className="text-sm font-medium text-ink-800">{tx.label}</p>
-                      <p className="text-xs text-ink-400">{tx.date}</p>
-                    </div>
-                    <span className="font-bold text-pine-600">{tx.amount}</span>
-                  </div>
-                ))}
-              </div>
+            <Card>
+              {/*
+                The old tab showed "$8,920 total", "$428 pending payout" and a
+                transaction ledger, all hardcoded. There is no payouts or
+                earnings API — booking amounts are what a *client* was charged,
+                not what an advisor is owed after platform fees — so nothing
+                here can be derived honestly from what exists today.
+              */}
+              <EmptyState
+                icon={<DollarSign className="w-8 h-8" />}
+                title="Earnings coming soon"
+                description="Payouts and transaction history will appear here once payments reporting is available."
+              />
             </Card>
           </div>
         )}
@@ -296,21 +461,11 @@ export function AdvisorDashboardPage() {
           <div>
             <h1 className="font-heading font-medium text-2xl text-ink-900 mb-5">Profile Settings</h1>
             <Card>
-              <div className="flex items-center gap-4 mb-6">
-                <Avatar username="@MindfulRohan" color="#8a3f24" size="xl" showOnline />
-                <div>
-                  <h2 className="font-heading font-semibold text-xl text-ink-900">@MindfulRohan</h2>
-                  <p className="text-ink-500 text-sm">Licensed Clinical Psychologist</p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <Star className="w-4 h-4 text-warn-500 fill-warn-500" />
-                    <span className="text-sm font-semibold">4.9</span>
-                    <span className="text-xs text-ink-400">(342 reviews)</span>
-                  </div>
-                </div>
-              </div>
-              <p className="text-sm text-ink-500 text-center py-6 bg-ink-50 rounded-xl">
-                Profile settings editing coming soon in the full version.
-              </p>
+              <EmptyState
+                icon={<Settings className="w-8 h-8" />}
+                title="Profile settings coming soon"
+                description="Editing your public advisor profile is not available yet."
+              />
             </Card>
           </div>
         )}

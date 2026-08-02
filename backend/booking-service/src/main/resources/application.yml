@@ -21,6 +21,11 @@ spring:
 
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:sk_test_placeholder}
+  # Supplied per environment from the Stripe dashboard's endpoint signing secret. Blank by
+  # default, mirroring application-docker.yml: with no value every webhook delivery fails
+  # signature verification and is rejected, which is the correct posture for an environment
+  # that has not been told which endpoint it is.
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
 
 management:
   endpoints:

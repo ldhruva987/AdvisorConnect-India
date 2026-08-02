@@ -1,11 +1,17 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Users, Mail, Lock } from 'lucide-react'
+import { useRegister } from '@/features/auth/hooks/useRegister'
+import { getErrorMessage } from '@/lib/getErrorMessage'
 import { Button } from '@/shared/components/ui/Button'
+import { ErrorBanner } from '@/shared/components/ui/ErrorBanner'
 import { Input } from '@/shared/components/ui/Input'
 import { useAuthStore } from '@/stores'
 
 type UserType = 'seeker' | 'advisor'
+
+/** Shortest password the backend will accept. */
+const MIN_PASSWORD_LENGTH = 8
 
 export function RegisterPage() {
   const navigate = useNavigate()
@@ -14,40 +20,54 @@ export function RegisterPage() {
   const [userType, setUserType] = useState<UserType>('seeker')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  /** Client-side validation only. Server failures come off the mutation. */
+  const [formError, setFormError] = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const { mutate, isPending, error, reset } = useRegister()
+
+  const isAdvisor = userType === 'advisor'
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
-
-    if (userType === 'advisor') {
-      navigate('/onboarding')
-      return
-    }
+    setFormError('')
+    // Clear a previous failure so a resubmit doesn't show a stale banner.
+    reset()
 
     if (!email || !password) {
-      setError('Please fill in all fields.')
+      setFormError('Please fill in all fields.')
       return
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setFormError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`)
       return
     }
 
-    setLoading(true)
-    await new Promise((r) => setTimeout(r, 800))
-    setLoading(false)
-
-    login({
-      userId: '1',
-      role: 'user',
-      accessToken: 'mock-access-token',
-      refreshToken: 'mock-refresh-token',
-    })
-
-    navigate('/explore')
+    // No `role` is sent: the backend locks registration to role=USER. Advisors
+    // are promoted later, by the `advisor.approved` event — never at signup.
+    mutate(
+      { email, password },
+      {
+        onSuccess: (tokens) => {
+          // `/auth/register` auto-logs-in, so the response is a full
+          // TokenResponse and there's no second round trip to /auth/login.
+          login({
+            userId: tokens.userId,
+            role: tokens.role,
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+          })
+          // Advisors need a real account *before* onboarding: `/advisors/apply`
+          // is an authenticated endpoint. This is why the advisor path
+          // registers rather than jumping straight to the form as it used to —
+          // that older shortcut sent people to an application they could not
+          // actually submit.
+          navigate(isAdvisor ? '/onboarding' : '/explore', { replace: true })
+        },
+      },
+    )
   }
+
+  const errorMessage = formError || (error ? getErrorMessage(error) : '')
 
   return (
     <div className="min-h-screen bg-ink-50 flex items-center justify-center px-4 pt-16">
@@ -68,8 +88,9 @@ export function RegisterPage() {
             <button
               type="button"
               onClick={() => setUserType('seeker')}
+              aria-pressed={!isAdvisor}
               className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                userType === 'seeker'
+                !isAdvisor
                   ? 'border-oxblood-700 bg-oxblood-50'
                   : 'border-ink-200 hover:border-ink-300'
               }`}
@@ -81,8 +102,9 @@ export function RegisterPage() {
             <button
               type="button"
               onClick={() => setUserType('advisor')}
+              aria-pressed={isAdvisor}
               className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                userType === 'advisor'
+                isAdvisor
                   ? 'border-oxblood-700 bg-oxblood-50'
                   : 'border-ink-200 hover:border-ink-300'
               }`}
@@ -93,69 +115,54 @@ export function RegisterPage() {
             </button>
           </div>
 
-          {userType === 'advisor' ? (
-            <div className="text-center py-4">
-              <div className="bg-oxblood-50 rounded-xl p-4 mb-5">
-                <p className="text-sm text-ink-700 font-medium mb-1">Advisor Application Required</p>
-                <p className="text-xs text-ink-500">
-                  Advisors go through a verification process to ensure quality and trust for our users.
-                  Click below to start your application.
-                </p>
-              </div>
-              <Button variant="primary" size="lg" fullWidth onClick={() => navigate('/onboarding')}>
-                Start Advisor Application →
-              </Button>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {error && (
-                <div className="bg-danger-100 border border-danger-600/20 rounded-xl px-4 py-3 text-sm text-danger-600 font-medium">
-                  {error}
-                </div>
-              )}
-
-              <Input
-                label="Email address"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                leftIcon={<Mail className="w-4 h-4" />}
-                required
-                autoComplete="email"
-              />
-
-              <Input
-                label="Password"
-                type="password"
-                placeholder="Create a strong password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                leftIcon={<Lock className="w-4 h-4" />}
-                required
-                helper="Minimum 8 characters"
-                autoComplete="new-password"
-              />
-
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                fullWidth
-                loading={loading}
-              >
-                Create Free Account
-              </Button>
-
-              <p className="text-xs text-ink-400 text-center leading-relaxed">
-                By creating an account, you agree to our{' '}
-                <a href="/terms" className="text-oxblood-700 hover:underline">Terms of Service</a>
-                {' '}and{' '}
-                <a href="/privacy" className="text-oxblood-700 hover:underline">Privacy Policy</a>.
-                Your real identity is always kept private.
+          {isAdvisor && (
+            <div className="bg-oxblood-50 rounded-xl p-4 mb-5">
+              <p className="text-sm text-ink-700 font-medium mb-1">Advisor Application Required</p>
+              <p className="text-xs text-ink-500">
+                Advisors go through a verification process to ensure quality and trust for our
+                users. Create your account below to start your application.
               </p>
-            </form>
+            </div>
           )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {errorMessage && <ErrorBanner message={errorMessage} />}
+
+            <Input
+              label="Email address"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              leftIcon={<Mail className="w-4 h-4" />}
+              required
+              autoComplete="email"
+            />
+
+            <Input
+              label="Password"
+              type="password"
+              placeholder="Create a strong password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              leftIcon={<Lock className="w-4 h-4" />}
+              required
+              helper={`Minimum ${MIN_PASSWORD_LENGTH} characters`}
+              autoComplete="new-password"
+            />
+
+            <Button type="submit" variant="primary" size="lg" fullWidth loading={isPending}>
+              {isAdvisor ? 'Start Advisor Application →' : 'Create Free Account'}
+            </Button>
+
+            <p className="text-xs text-ink-400 text-center leading-relaxed">
+              By creating an account, you agree to our{' '}
+              <a href="/terms" className="text-oxblood-700 hover:underline">Terms of Service</a>
+              {' '}and{' '}
+              <a href="/privacy" className="text-oxblood-700 hover:underline">Privacy Policy</a>.
+              Your real identity is always kept private.
+            </p>
+          </form>
 
           <p className="text-center text-sm text-ink-500 mt-5">
             Already have an account?{' '}

@@ -29,6 +29,19 @@ public class Booking {
     @Column(nullable = false)
     private Instant sessionDateTime;
 
+    /**
+     * Exclusive end of the session, i.e. {@code sessionDateTime + durationMinutes}.
+     *
+     * <p>Denormalised on purpose. Availability has to ask "does this candidate slot overlap
+     * any existing booking?", and answering that from the start time alone meant a 60-minute
+     * booking only ever blocked its first 30-minute slot — the second half stayed bookable.
+     *
+     * <p>Nullable rather than {@code nullable = false}: the column is additive on an existing
+     * table, and rows written before this field existed have no end time. Readers fall back to
+     * {@code sessionDateTime + durationMinutes} when it is null.
+     */
+    private Instant sessionEndDateTime;
+
     @Column(nullable = false)
     private int durationMinutes; // 30 or 60
 

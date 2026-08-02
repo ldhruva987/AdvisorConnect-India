@@ -1,106 +1,146 @@
-import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Search, Send, Video, User } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { MessagesSquare, Search, Send, User, Video } from 'lucide-react'
 import { Avatar } from '@/shared/components/ui/Avatar'
 import { Button } from '@/shared/components/ui/Button'
+import { EmptyState } from '@/shared/components/ui/EmptyState'
+import { ErrorBanner } from '@/shared/components/ui/ErrorBanner'
+import { Skeleton } from '@/shared/components/ui/Skeleton'
 import { Navbar } from '@/shared/components/layout/Navbar'
-import type { Conversation, Message } from '@/types'
+import { useChatSocket } from '@/features/chat/hooks/useChatSocket'
+import { useConversations } from '@/features/chat/hooks/useConversations'
+import { useMessageHistory } from '@/features/chat/hooks/useMessageHistory'
+import { formatConversationTime } from '@/lib/formatDateTime'
+import { getErrorMessage } from '@/lib/getErrorMessage'
+import { useChatStore } from '@/stores/chatStore'
+import type { Message } from '@/types'
 
-const MOCK_CONVERSATIONS: Conversation[] = [
-  {
-    id: 'conv-1',
-    advisorId: '1',
-    advisorUsername: '@MindfulRohan',
-    advisorColor: '#8a3f24',
-    lastMessage: 'That sounds really challenging. Have you tried the breathing exercise I mentioned?',
-    lastMessageAt: '2m ago',
-    unreadCount: 2,
-    isAdvisorOnline: true,
-  },
-  {
-    id: 'conv-2',
-    advisorId: '2',
-    advisorUsername: '@SarahCareerPro',
-    advisorColor: '#784f00',
-    lastMessage: 'Your resume looks great! Let\'s work on your LinkedIn profile next.',
-    lastMessageAt: '1h ago',
-    unreadCount: 0,
-    isAdvisorOnline: true,
-  },
-  {
-    id: 'conv-3',
-    advisorId: '3',
-    advisorUsername: '@FinanceWithTed',
-    advisorColor: '#516000',
-    lastMessage: 'I\'d recommend diversifying your portfolio before thinking about real estate.',
-    lastMessageAt: 'Yesterday',
-    unreadCount: 0,
-    isAdvisorOnline: false,
-  },
-]
+/**
+ * Stable identity for "this thread has no messages". Returning a fresh `[]`
+ * from the zustand selector would give a new reference on every store change
+ * and re-render the whole thread for unrelated updates.
+ */
+const NO_MESSAGES: Message[] = []
 
-const INITIAL_MESSAGES: Message[] = [
-  {
-    id: 'msg-1',
-    conversationId: 'conv-1',
-    senderId: 'advisor-1',
-    senderType: 'advisor',
-    text: 'Hi! I\'m Rohan. Thanks for reaching out. How can I help you today?',
-    createdAt: '10:02 AM',
-  },
-  {
-    id: 'msg-2',
-    conversationId: 'conv-1',
-    senderId: 'user-1',
-    senderType: 'user',
-    text: 'Hi Rohan! I\'ve been feeling really overwhelmed lately with work and I think it\'s affecting my sleep.',
-    createdAt: '10:04 AM',
-  },
-  {
-    id: 'msg-3',
-    conversationId: 'conv-1',
-    senderId: 'advisor-1',
-    senderType: 'advisor',
-    text: 'I hear you — that combination of work stress and disrupted sleep is really tough. It\'s actually very common for work pressure to create a cycle where stress affects sleep, and poor sleep makes the stress worse. Can you tell me more about what\'s been happening at work?',
-    createdAt: '10:06 AM',
-  },
-  {
-    id: 'msg-4',
-    conversationId: 'conv-1',
-    senderId: 'user-1',
-    senderType: 'user',
-    text: 'It\'s been a big project deadline coming up. I keep thinking about it even at night. My mind just won\'t switch off.',
-    createdAt: '10:08 AM',
-  },
-  {
-    id: 'msg-5',
-    conversationId: 'conv-1',
-    senderId: 'advisor-1',
-    senderType: 'advisor',
-    text: 'That sounds really challenging. What you\'re describing is called "rumination" — when your brain keeps replaying worries. The good news is there are some very effective techniques to create a mental boundary between work and rest. Would you like me to walk you through a quick CBT-based wind-down exercise?',
-    createdAt: '10:10 AM',
-  },
-]
+/**
+ * Server timestamps are ISO instants (`2026-07-31T18:04:00Z`). Rendered as a
+ * local wall-clock time. Anything unparseable is shown verbatim rather than as
+ * "Invalid Date" — a malformed timestamp should not disfigure the message.
+ */
+function formatMessageTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 
-const ADVISOR_REPLIES = [
-  'That\'s a really insightful question. Let me share some techniques that have worked well for my clients...',
-  'I understand where you\'re coming from. This is something many people struggle with, and it\'s completely normal.',
-  'Based on what you\'ve shared, I think a CBT approach could be really helpful here. Would you be open to trying a small exercise?',
-  'Great question! The research actually shows that even 10 minutes of mindfulness per day can make a significant difference.',
-  'I\'m glad you reached out. Let\'s take this step by step and figure out the best path forward for you.',
-]
+function ConversationSkeleton() {
+  return (
+    <div className="flex items-start gap-3 p-4" role="status" aria-label="Loading conversations">
+      <Skeleton className="w-10 h-10 rounded-full flex-shrink-0" />
+      <div className="flex-1 space-y-2 pt-1">
+        <Skeleton className="h-3 w-2/5" />
+        <Skeleton className="h-3 w-4/5" />
+      </div>
+    </div>
+  )
+}
+
+function MessageSkeleton() {
+  return (
+    <div className="space-y-4" role="status" aria-label="Loading messages">
+      {[
+        { mine: false, width: 'w-3/5' },
+        { mine: true, width: 'w-2/5' },
+        { mine: false, width: 'w-1/2' },
+      ].map((row, index) => (
+        <div key={index} className={`flex ${row.mine ? 'justify-end' : 'justify-start'}`}>
+          <Skeleton className={`h-14 rounded-xl ${row.width}`} />
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export function ChatPage() {
   const navigate = useNavigate()
-  const [activeConvId, setActiveConvId] = useState('conv-1')
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES)
-  const [newMessage, setNewMessage] = useState('')
-  const [advisorTyping, setAdvisorTyping] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const replyIndex = useRef(0)
+  /**
+   * The page is mounted at both `/chat` and `/chat/:advisorId`. Reading the
+   * param is what makes the second route mean anything: before this, every URL
+   * rendered one hardcoded thread.
+   */
+  const { advisorId } = useParams<{ advisorId?: string }>()
 
-  const activeConv = MOCK_CONVERSATIONS.find((c) => c.id === activeConvId)
+  const [newMessage, setNewMessage] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sendError, setSendError] = useState<string | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // ── Store (the single source of truth for what's on screen) ──────────────
+  const conversations = useChatStore((s) => s.conversations)
+  const wsConnected = useChatStore((s) => s.wsConnected)
+  const setConversations = useChatStore((s) => s.setConversations)
+  const setMessages = useChatStore((s) => s.setMessages)
+  const setActiveConversation = useChatStore((s) => s.setActiveConversation)
+  const markAsRead = useChatStore((s) => s.markAsRead)
+
+  // ── Remote data ──────────────────────────────────────────────────────────
+  const conversationsQuery = useConversations()
+  const historyQuery = useMessageHistory(advisorId)
+
+  useEffect(() => {
+    if (conversationsQuery.data) setConversations(conversationsQuery.data)
+  }, [conversationsQuery.data, setConversations])
+
+  /**
+   * The conversation for the advisor in the URL, if the server already knows
+   * about one.
+   */
+  const activeConversation = useMemo(
+    () => (advisorId ? (conversations.find((c) => c.advisorId === advisorId) ?? null) : null),
+    [conversations, advisorId],
+  )
+
+  /**
+   * Key the thread is stored and rendered under.
+   *
+   * Falls back to the raw `advisorId` so a brand-new chat has somewhere to
+   * live: the backend only materialises a conversation once a message exists,
+   * so blocking on one being present server-side would make it impossible to
+   * ever send the first message. `useChatSocket` keys unattributed frames by
+   * advisorId for exactly the same reason, so the two agree.
+   */
+  const threadId = activeConversation?.id ?? advisorId ?? null
+
+  const messages = useChatStore((s) => (threadId ? (s.messages[threadId] ?? NO_MESSAGES) : NO_MESSAGES))
+  const advisorTyping = useChatStore((s) => (advisorId ? s.typingAdvisors.has(advisorId) : false))
+
+  useEffect(() => {
+    setActiveConversation(threadId)
+  }, [threadId, setActiveConversation])
+
+  useEffect(() => {
+    const history = historyQuery.data
+    if (!history || !threadId) return
+    /**
+     * Server messages carry their own `conversationId`. Trusting it matters
+     * during the first paint of a deep link: `threadId` is still the advisor
+     * id until the conversation list resolves, and writing history under that
+     * temporary key would strand it once the real id arrives.
+     */
+    setMessages(history[0]?.conversationId ?? threadId, history)
+  }, [historyQuery.data, threadId, setMessages])
+
+  /** Opening a thread clears its badge. */
+  useEffect(() => {
+    if (activeConversation && activeConversation.unreadCount > 0) {
+      markAsRead(activeConversation.id)
+    }
+  }, [activeConversation, markAsRead])
+
+  // ── Live socket ──────────────────────────────────────────────────────────
+  // Incoming frames are dispatched straight into the store by the hook; there
+  // is nothing to wire up here beyond holding the connection open.
+  const { sendMessage } = useChatSocket(advisorId)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -110,32 +150,19 @@ export function ChatPage() {
     const text = newMessage.trim()
     if (!text) return
 
-    const userMsg: Message = {
-      id: `msg-${Date.now()}`,
-      conversationId: activeConvId,
-      senderId: 'user-1',
-      senderType: 'user',
-      text,
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    /**
+     * Echo-only: the server broadcasts the message back to its sender, and
+     * `useChatSocket` appends that frame to the store. No optimistic append
+     * here because `chatStore.appendMessage` is an unconditional push with no
+     * de-duplication — an optimistic bubble would be joined by a second copy
+     * the moment the echo landed.
+     */
+    if (!sendMessage(text)) {
+      setSendError('Not connected — your message was not sent. Retry once the connection is back.')
+      return
     }
-
-    setMessages((prev) => [...prev, userMsg])
+    setSendError(null)
     setNewMessage('')
-    setAdvisorTyping(true)
-
-    setTimeout(() => {
-      setAdvisorTyping(false)
-      const advisorMsg: Message = {
-        id: `msg-${Date.now() + 1}`,
-        conversationId: activeConvId,
-        senderId: 'advisor-1',
-        senderType: 'advisor',
-        text: ADVISOR_REPLIES[replyIndex.current % ADVISOR_REPLIES.length],
-        createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      }
-      replyIndex.current += 1
-      setMessages((prev) => [...prev, advisorMsg])
-    }, 1500)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -145,9 +172,16 @@ export function ChatPage() {
     }
   }
 
-  const filteredConvs = MOCK_CONVERSATIONS.filter((c) =>
-    c.advisorUsername.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredConvs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return conversations
+    return conversations.filter((c) => c.advisorUsername.toLowerCase().includes(q))
+  }, [conversations, searchQuery])
+
+  const conversationsError = conversationsQuery.error
+    ? getErrorMessage(conversationsQuery.error)
+    : null
+  const historyError = historyQuery.error ? getErrorMessage(historyQuery.error) : null
 
   return (
     <div className="fixed top-0 w-full pt-16 flex h-screen bg-ink-50">
@@ -162,6 +196,7 @@ export function ChatPage() {
             <input
               type="text"
               placeholder="Search..."
+              aria-label="Search conversations"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm border border-ink-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-oxblood-700 bg-ink-50"
@@ -170,69 +205,116 @@ export function ChatPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {filteredConvs.map((conv) => (
-            <button
-              key={conv.id}
-              onClick={() => setActiveConvId(conv.id)}
-              className={`w-full flex items-start gap-3 p-4 hover:bg-ink-50 transition-colors text-left ${
-                activeConvId === conv.id ? 'bg-oxblood-50' : ''
-              }`}
-            >
-              <Avatar
-                username={conv.advisorUsername}
-                color={conv.advisorColor}
-                size="md"
-                showOnline={conv.isAdvisorOnline}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-sm font-semibold text-ink-900 truncate">{conv.advisorUsername}</span>
-                  <span className="text-xs text-ink-400 flex-shrink-0 ml-1">{conv.lastMessageAt}</span>
+          {conversationsQuery.isLoading ? (
+            <>
+              <ConversationSkeleton />
+              <ConversationSkeleton />
+              <ConversationSkeleton />
+            </>
+          ) : conversationsError ? (
+            <div className="p-4">
+              <ErrorBanner message={conversationsError} onRetry={() => void conversationsQuery.refetch()} />
+            </div>
+          ) : filteredConvs.length === 0 ? (
+            <EmptyState
+              className="py-10"
+              title="No conversations"
+              description={
+                searchQuery.trim() ? 'No advisor matches that search.' : 'Message an advisor to start one.'
+              }
+            />
+          ) : (
+            filteredConvs.map((conv) => (
+              <button
+                key={conv.id}
+                onClick={() => {
+                  markAsRead(conv.id)
+                  // The URL owns which thread is open, so selecting one
+                  // navigates rather than setting local state. That keeps the
+                  // socket, the history fetch and the address bar in agreement.
+                  navigate(`/chat/${conv.advisorId}`)
+                }}
+                className={`w-full flex items-start gap-3 p-4 hover:bg-ink-50 transition-colors text-left ${
+                  activeConversation?.id === conv.id ? 'bg-oxblood-50' : ''
+                }`}
+              >
+                <Avatar
+                  username={conv.advisorUsername}
+                  color={conv.advisorColor}
+                  size="md"
+                  showOnline={conv.isAdvisorOnline}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-sm font-semibold text-ink-900 truncate">
+                      {conv.advisorUsername}
+                    </span>
+                    <span className="text-xs text-ink-400 flex-shrink-0 ml-1">
+                      {formatConversationTime(conv.lastMessageAt)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-ink-500 truncate">{conv.lastMessage}</p>
                 </div>
-                <p className="text-xs text-ink-500 truncate">{conv.lastMessage}</p>
-              </div>
-              {conv.unreadCount > 0 && (
-                <span className="w-5 h-5 rounded-full bg-oxblood-700 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                  {conv.unreadCount}
-                </span>
-              )}
-            </button>
-          ))}
+                {conv.unreadCount > 0 && (
+                  <span
+                    aria-label={`${conv.unreadCount} unread messages`}
+                    className="w-5 h-5 rounded-full bg-oxblood-700 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5"
+                  >
+                    {conv.unreadCount}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
         </div>
       </aside>
 
       {/* Main pane */}
       <main className="flex-1 flex flex-col bg-ink-50 h-[calc(100vh-64px)]">
-        {activeConv ? (
+        {advisorId ? (
           <>
             {/* Chat header */}
             <div className="bg-white border-b border-ink-200 px-5 py-3 flex items-center gap-3">
               <Avatar
-                username={activeConv.advisorUsername}
-                color={activeConv.advisorColor}
+                username={activeConversation?.advisorUsername ?? advisorId}
+                color={activeConversation?.advisorColor}
                 size="md"
-                showOnline={activeConv.isAdvisorOnline}
+                showOnline={activeConversation?.isAdvisorOnline ?? false}
               />
               <div className="flex-1">
-                <h3 className="font-semibold text-ink-900 text-sm">{activeConv.advisorUsername}</h3>
+                <h3 className="font-semibold text-ink-900 text-sm">
+                  {activeConversation?.advisorUsername ?? 'New conversation'}
+                </h3>
                 <p className="text-xs text-ink-400">
-                  {activeConv.isAdvisorOnline ? '🟢 Online · Responds in <5 min' : '⚫ Offline'}
+                  {activeConversation
+                    ? activeConversation.isAdvisorOnline
+                      ? '🟢 Online · Responds in <5 min'
+                      : '⚫ Offline'
+                    : 'Send a message to start this chat'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate(`/advisor/${activeConv.advisorUsername}`)}
-                >
-                  <User className="w-4 h-4" />
-                  View Profile
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => navigate(`/book/${activeConv.advisorId}`)}
-                >
+                {/* Non-blocking: the thread stays readable and the socket is
+                    already retrying underneath. */}
+                {!wsConnected && (
+                  <span
+                    role="status"
+                    className="text-xs font-medium text-warn-600 bg-warn-100 border border-warn-500/30 rounded-full px-3 py-1"
+                  >
+                    Reconnecting…
+                  </span>
+                )}
+                {activeConversation && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate(`/advisor/${activeConversation.advisorUsername}`)}
+                  >
+                    <User className="w-4 h-4" />
+                    View Profile
+                  </Button>
+                )}
+                <Button variant="primary" size="sm" onClick={() => navigate(`/book/${advisorId}`)}>
                   <Video className="w-4 h-4" />
                   Book Video
                 </Button>
@@ -241,24 +323,28 @@ export function ChatPage() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {/* Free chat pill */}
               <div className="flex justify-center">
                 <span className="bg-pine-100 text-pine-600 text-xs font-semibold px-4 py-1.5 rounded-full">
                   ✓ Free chat — unlimited messages
                 </span>
               </div>
 
-              {messages
-                .filter((m) => m.conversationId === activeConvId)
-                .map((msg) => (
+              {historyError && <ErrorBanner message={historyError} onRetry={() => void historyQuery.refetch()} />}
+
+              {historyQuery.isLoading ? (
+                <MessageSkeleton />
+              ) : (
+                messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex ${msg.senderType === 'user' ? 'justify-end' : 'justify-start items-end gap-2'}`}
+                    className={`flex ${
+                      msg.senderType === 'user' ? 'justify-end' : 'justify-start items-end gap-2'
+                    }`}
                   >
                     {msg.senderType === 'advisor' && (
                       <Avatar
-                        username={activeConv.advisorUsername}
-                        color={activeConv.advisorColor}
+                        username={activeConversation?.advisorUsername ?? advisorId}
+                        color={activeConversation?.advisorColor}
                         size="sm"
                       />
                     )}
@@ -270,19 +356,24 @@ export function ChatPage() {
                       >
                         {msg.text}
                       </div>
-                      <p className={`text-xs text-ink-400 mt-1 ${msg.senderType === 'user' ? 'text-right' : ''}`}>
-                        {msg.createdAt}
+                      <p
+                        className={`text-xs text-ink-400 mt-1 ${
+                          msg.senderType === 'user' ? 'text-right' : ''
+                        }`}
+                      >
+                        {formatMessageTime(msg.createdAt)}
                       </p>
                     </div>
                   </div>
-                ))}
+                ))
+              )}
 
-              {/* Typing indicator */}
+              {/* Typing indicator — driven only by a real inbound TYPING frame. */}
               {advisorTyping && (
-                <div className="flex items-end gap-2">
+                <div className="flex items-end gap-2" role="status" aria-label="Advisor is typing">
                   <Avatar
-                    username={activeConv.advisorUsername}
-                    color={activeConv.advisorColor}
+                    username={activeConversation?.advisorUsername ?? advisorId}
+                    color={activeConversation?.advisorColor}
                     size="sm"
                   />
                   <div className="msg-bubble-advisor px-4 py-3">
@@ -304,12 +395,14 @@ export function ChatPage() {
 
             {/* Input bar */}
             <div className="bg-white border-t border-ink-200 p-4">
+              {sendError && <ErrorBanner className="mb-3" message={sendError} />}
               <div className="flex items-end gap-3">
                 <textarea
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Type a message..."
+                  aria-label="Message"
                   rows={1}
                   className="flex-1 input-base resize-none max-h-32 py-2.5 text-sm"
                   style={{ minHeight: '44px' }}
@@ -329,8 +422,12 @@ export function ChatPage() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-ink-400">
-            <p>Select a conversation to start chatting</p>
+          <div className="flex-1 flex items-center justify-center">
+            <EmptyState
+              icon={<MessagesSquare className="w-10 h-10" />}
+              title="Select a conversation"
+              description="Choose a chat from the list, or message an advisor from their profile."
+            />
           </div>
         )}
       </main>

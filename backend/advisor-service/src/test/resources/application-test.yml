@@ -1,0 +1,15 @@
+# Layered on top of application.yml by @ActiveProfiles("test"); it does not replace it.
+#
+# A real, fixed AES-256 key so the encrypted-column tests exercise the actual cipher path rather
+# than the converter's blank-key pass-through. Fixed rather than random because AdvisorServiceIT
+# reads the raw columns back over JDBC and has to be able to tell ciphertext from plaintext.
+# Test-only value, never used anywhere else — `openssl rand -base64 32` output, committed on
+# purpose.
+pii:
+  encryption:
+    key: "K9x2Lq7vZ3mR8sT1wY6bN4jH0aC5dF2gP7uE9iO3kM0="
+
+logging:
+  level:
+    com.advisorconnect: INFO
+    org.apache.kafka: WARN

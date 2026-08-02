@@ -1,6 +1,8 @@
 package com.advisorconnect.auth.domain.port.out;
 
 import com.advisorconnect.auth.domain.model.User;
+import com.advisorconnect.auth.domain.model.UserRole;
+
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,4 +15,7 @@ public interface UserRepository {
     Optional<User> findByEmail(String email);
     Optional<User> findById(UUID id);
     boolean existsByEmail(String email);
+
+    /** Used by the admin seeder to stay idempotent across restarts. */
+    boolean existsByRole(UserRole role);
 }

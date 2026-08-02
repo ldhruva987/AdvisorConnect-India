@@ -1,10 +1,10 @@
 package com.advisorconnect.admin.adapter.in.web;
 
+import com.advisorconnect.admin.application.AuditLogService;
+import com.advisorconnect.admin.application.PlatformStats;
+import com.advisorconnect.admin.application.StatsService;
 import com.advisorconnect.admin.domain.model.AuditLog;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import jakarta.persistence.TypedQuery;
-import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,56 +12,49 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Admin-only endpoints. The API Gateway enforces X-User-Role = ADMIN
- * before routing to this service.
+ * Admin-only endpoints. {@code SecurityConfig} requires the ADMIN role on {@code /admin/**},
+ * reconstructed from the {@code X-User-*} headers the API Gateway injects.
+ *
+ * <p>The controller used to hold an {@code EntityManager} and write JPQL inline — the only place
+ * in the codebase where the web layer talked to the database directly. Persistence now sits
+ * behind services and ports like everywhere else; the endpoint contracts are unchanged.
  */
 @RestController
 @RequestMapping("/admin")
+@RequiredArgsConstructor
 public class AdminController {
 
-    @PersistenceContext
-    private EntityManager em;
+    private final AuditLogService auditLogService;
+    private final StatsService statsService;
 
-    /** GET /admin/audit-logs — paginated audit trail */
+    /** GET /admin/audit-logs — paginated audit trail, newest first */
     @GetMapping("/audit-logs")
     public ResponseEntity<List<AuditLog>> getAuditLogs(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        TypedQuery<AuditLog> q = em.createQuery(
-                "SELECT a FROM AuditLog a ORDER BY a.createdAt DESC", AuditLog.class);
-        q.setFirstResult(page * size);
-        q.setMaxResults(size);
-        return ResponseEntity.ok(q.getResultList());
+        return ResponseEntity.ok(auditLogService.listRecent(page, size));
     }
 
     /** POST /admin/audit-logs — record an admin action */
     @PostMapping("/audit-logs")
-    @Transactional
     public ResponseEntity<AuditLog> createAuditLog(
             @RequestHeader("X-User-Id") UUID adminId,
             @RequestBody AuditLogRequest req) {
-        AuditLog log = new AuditLog();
-        log.setAdminId(adminId);
-        log.setAction(req.action());
-        log.setTargetId(req.targetId());
-        log.setTargetType(req.targetType());
-        log.setNote(req.note());
-        em.persist(log);
+        AuditLog log = auditLogService.record(
+                adminId, req.action(), req.targetId(), req.targetType(), req.note());
         return ResponseEntity.ok(log);
     }
 
-    /** GET /admin/stats — platform statistics */
+    /**
+     * GET /admin/stats — platform statistics.
+     *
+     * <p>{@code approvedAdvisors} and {@code totalAdminActions} keep their existing names; the
+     * pending-application, user and revenue figures are additive.
+     */
     @GetMapping("/stats")
     public ResponseEntity<PlatformStats> getStats() {
-        long totalAdvisors = (long) em.createQuery(
-                "SELECT COUNT(a) FROM AuditLog a WHERE a.action = 'ADVISOR_APPROVED'")
-                .getSingleResult();
-        long totalActions = (long) em.createQuery(
-                "SELECT COUNT(a) FROM AuditLog a")
-                .getSingleResult();
-        return ResponseEntity.ok(new PlatformStats(totalAdvisors, totalActions));
+        return ResponseEntity.ok(statsService.currentStats());
     }
 
     record AuditLogRequest(String action, String targetId, String targetType, String note) {}
-    record PlatformStats(long approvedAdvisors, long totalAdminActions) {}
 }

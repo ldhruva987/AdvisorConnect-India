@@ -46,17 +46,26 @@ spring:
           filters:
             - StripPrefix=1
 
+        # No StripPrefix here, deliberately. chat-service registers its handler at the literal
+        # path /ws/chat (WebSocketConfig), so the full path has to arrive unchanged; StripPrefix=1
+        # rewrote it to /chat and every handshake 404'd before the upgrade. The docker profile
+        # always had this right — this route is the one that drifted.
         - id: chat-service-ws
           uri: ${CHAT_WS_URL:ws://localhost:8085}
           predicates:
             - Path=/ws/**
-          filters:
-            - StripPrefix=1
 
         - id: admin-service
           uri: ${ADMIN_SERVICE_URL:http://localhost:8086}
           predicates:
             - Path=/api/admin/**
+          filters:
+            - StripPrefix=1
+
+        - id: notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8087}
+          predicates:
+            - Path=/api/notifications/**
           filters:
             - StripPrefix=1
 

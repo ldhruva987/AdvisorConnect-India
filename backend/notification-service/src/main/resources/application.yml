@@ -28,6 +28,13 @@ spring:
     hibernate:
       ddl-auto: validate
 
+# Envelope sender for every outbound email. Previously hardcoded as
+# noreply@advisorconnect.com inside EmailNotificationService while docker-compose and
+# application-docker.yml both set MAIL_FROM to the .io address that nothing read; the .io
+# domain is the operational one, so it is the default here too.
+mail:
+  from: ${MAIL_FROM:noreply@advisorconnect.io}
+
 management:
   endpoints:
     web:

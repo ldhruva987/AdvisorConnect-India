@@ -11,6 +11,9 @@
   <name>AdvisorConnect Parent POM</name>
 
   <modules>
+    <!-- Shared library every service depends on; listed first for readability (the reactor
+         derives the real build order from the dependency graph, not this ordering). -->
+    <module>common</module>
     <module>api-gateway</module>
     <module>auth-service</module>
     <module>user-service</module>
@@ -59,6 +62,43 @@
   </dependencies>
 
   <build>
+    <pluginManagement>
+      <plugins>
+        <!-- Fast unit suite: `mvn test` runs *Test.java only, never the Testcontainers-backed ITs. -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <configuration>
+            <includes>
+              <include>**/*Test.java</include>
+            </includes>
+            <excludes>
+              <exclude>**/*IT.java</exclude>
+            </excludes>
+          </configuration>
+        </plugin>
+        <!-- Integration suite: `mvn verify` runs *IT.java. Version comes from the Spring Boot
+             BOM; the plugin itself is not bound by the parent, so it is declared below. -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <configuration>
+            <includes>
+              <include>**/*IT.java</include>
+            </includes>
+          </configuration>
+          <executions>
+            <execution>
+              <goals>
+                <goal>integration-test</goal>
+                <goal>verify</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>
@@ -71,6 +111,12 @@
             </exclude>
           </excludes>
         </configuration>
+      </plugin>
+      <!-- Activates the Failsafe configuration above in every module (a pluginManagement
+           entry alone would never execute). Modules with no *IT.java are a no-op. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
       </plugin>
     </plugins>
   </build>

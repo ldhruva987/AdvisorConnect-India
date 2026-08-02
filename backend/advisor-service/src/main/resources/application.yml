@@ -18,6 +18,28 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: advisor-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        # Producers send Map.of(...) payloads, whose runtime type header names a JDK-internal
+        # immutable map that Jackson cannot instantiate. Ignoring the header and always
+        # deserialising into a plain HashMap keeps consumption decoupled from the producer's
+        # concrete collection type.
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: java.util.HashMap
+
+# Base64-encoded 32-byte key for the AES-256-GCM encryption of the PII columns on
+# advisor_applications (legal name, date of birth, address, country). Intentionally has no
+# default: the service refuses to start without it rather than writing identity data in clear
+# text. Generate one with `openssl rand -base64 32`. Losing it means losing the data — it is not
+# recoverable from the ciphertext.
+pii:
+  encryption:
+    key: ${PII_ENCRYPTION_KEY:}
 
 management:
   endpoints:

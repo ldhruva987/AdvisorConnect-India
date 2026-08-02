@@ -1,55 +1,61 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Users, Mail, Lock } from 'lucide-react'
+import { ROLE_HOME } from '@/app/roleHome'
+import { useLogin } from '@/features/auth/hooks/useLogin'
+import { getErrorMessage } from '@/lib/getErrorMessage'
 import { Button } from '@/shared/components/ui/Button'
+import { ErrorBanner } from '@/shared/components/ui/ErrorBanner'
 import { Input } from '@/shared/components/ui/Input'
 import { useAuthStore } from '@/stores'
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const login = useAuthStore((s) => s.login)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  /** Client-side validation only. Server failures come off the mutation. */
+  const [formError, setFormError] = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const { mutate, isPending, error, reset } = useLogin()
+
+  // Set by ProtectedRoute when it bounced an unauthenticated visitor here.
+  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
+    setFormError('')
+    // Clear a previous failure so a resubmit doesn't show a stale banner.
+    reset()
 
     if (!email || !password) {
-      setError('Please fill in all fields.')
+      setFormError('Please fill in all fields.')
       return
     }
 
-    setLoading(true)
-    // Simulate network delay
-    await new Promise((r) => setTimeout(r, 800))
-    setLoading(false)
-
-    login({
-      userId: '1',
-      role: 'user',
-      accessToken: 'mock-access-token',
-      refreshToken: 'mock-refresh-token',
-    })
-
-    navigate('/explore')
+    mutate(
+      { email, password },
+      {
+        onSuccess: (tokens) => {
+          login({
+            userId: tokens.userId,
+            role: tokens.role,
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+          })
+          // Back to whatever they were denied, else their role's home. Role
+          // homes matter now that the "Admin login (demo)" button is gone:
+          // admins sign in through this same form and must still land on
+          // /admin. `replace` keeps /login out of the back-button history.
+          navigate(from ?? ROLE_HOME[tokens.role], { replace: true })
+        },
+      },
+    )
   }
 
-  const handleAdminLogin = async () => {
-    setLoading(true)
-    await new Promise((r) => setTimeout(r, 600))
-    setLoading(false)
-    login({
-      userId: 'admin-1',
-      role: 'admin',
-      accessToken: 'mock-admin-token',
-      refreshToken: 'mock-admin-refresh',
-    })
-    navigate('/admin')
-  }
+  const errorMessage = formError || (error ? getErrorMessage(error) : '')
 
   return (
     <div className="min-h-screen bg-ink-50 flex items-center justify-center px-4 pt-16">
@@ -66,11 +72,7 @@ export function LoginPage() {
         {/* Card */}
         <div className="bg-white rounded-xl border border-ink-200 p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="bg-danger-100 border border-danger-600/20 rounded-xl px-4 py-3 text-sm text-danger-600 font-medium">
-                {error}
-              </div>
-            )}
+            {errorMessage && <ErrorBanner message={errorMessage} />}
 
             <Input
               label="Email address"
@@ -106,7 +108,7 @@ export function LoginPage() {
               variant="primary"
               size="lg"
               fullWidth
-              loading={loading}
+              loading={isPending}
             >
               Sign In
             </Button>
@@ -118,16 +120,6 @@ export function LoginPage() {
               Sign up free
             </Link>
           </p>
-        </div>
-
-        {/* Admin login */}
-        <div className="mt-4 text-center">
-          <button
-            onClick={handleAdminLogin}
-            className="text-xs text-ink-400 hover:text-ink-600 transition-colors underline underline-offset-2"
-          >
-            Admin login (demo)
-          </button>
         </div>
       </div>
     </div>

@@ -23,11 +23,29 @@ const processQueue = (error: unknown, token: string | null) => {
   failedQueue = []
 }
 
+/**
+ * Endpoints where a 401 means "these credentials are wrong", not "your session
+ * expired". Refreshing in response to a failed login is meaningless — there is
+ * no session yet — and actively harmful: the refresh attempt's own failure
+ * replaces the real error, so the user is told "cannot reach the server"
+ * instead of "invalid email or password".
+ */
+const NO_REFRESH_PATHS = ['/auth/login', '/auth/register', '/auth/refresh']
+
+const shouldSkipRefresh = (url: string | undefined) =>
+  !!url && NO_REFRESH_PATHS.some((path) => url.startsWith(path) || url.includes(`/api${path}`))
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
-    if (error.response?.status !== 401 || originalRequest._retry) return Promise.reject(error)
+    if (error.response?.status !== 401 || !originalRequest || originalRequest._retry) {
+      return Promise.reject(error)
+    }
+    if (shouldSkipRefresh(originalRequest.url)) return Promise.reject(error)
+    // Nothing to refresh with: fail fast rather than POST `{refreshToken: null}`
+    // and log the user out on the resulting error.
+    if (!useAuthStore.getState().refreshToken) return Promise.reject(error)
 
     if (isRefreshing) {
       return new Promise((resolve, reject) => {

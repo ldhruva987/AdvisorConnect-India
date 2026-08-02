@@ -4,78 +4,15 @@ import { Button } from '@/shared/components/ui/Button'
 import { Footer } from '@/shared/components/layout/Footer'
 import { Navbar } from '@/shared/components/layout/Navbar'
 import { AdvisorCard } from '@/features/explore/components/AdvisorCard'
-import type { AdvisorPublic } from '@/types'
+import { useAdvisors } from '@/features/explore/hooks/useAdvisors'
+import { EmptyState } from '@/shared/components/ui/EmptyState'
+import { ErrorBanner } from '@/shared/components/ui/ErrorBanner'
+import { SkeletonCard } from '@/shared/components/ui/Skeleton'
+import { ALL_SECTORS, SECTOR_LABELS } from '@/lib/sectors'
+import type { AdvisorSectorEnum } from '@/lib/sectors'
 
-const MOCK_ADVISORS: AdvisorPublic[] = [
-  {
-    id: '1',
-    username: '@MindfulRohan',
-    title: 'Licensed Clinical Psychologist',
-    bio: '8 years helping people with anxiety, depression, and relationship challenges using CBT and mindfulness techniques tailored to each person.',
-    tags: ['Mental Health', 'CBT', 'Anxiety'],
-    rating: 4.9,
-    reviewCount: 342,
-    chatCount: 1247,
-    responseTimeMinutes: 5,
-    experienceYears: 8,
-    isOnline: true,
-    isVerified: true,
-    color: '#005e8f',
-    sectors: ['Mental Health', 'Relationships'],
-    languages: ['English'],
-  },
-  {
-    id: '2',
-    username: '@SarahCareerPro',
-    title: 'ICF-Certified Career Coach',
-    bio: 'Specialized in career transitions, salary negotiation, and executive presence. Helped 500+ professionals level up their careers.',
-    tags: ['Career', 'Leadership', 'Negotiation'],
-    rating: 4.8,
-    reviewCount: 218,
-    chatCount: 892,
-    responseTimeMinutes: 10,
-    experienceYears: 10,
-    isOnline: true,
-    isVerified: true,
-    color: '#516000',
-    sectors: ['Career'],
-    languages: ['English', 'Spanish'],
-  },
-  {
-    id: '3',
-    username: '@FinanceWithTed',
-    title: 'CFP & Investment Advisor',
-    bio: 'Certified Financial Planner with 12 years in wealth management and personal finance for young professionals and families.',
-    tags: ['Finance', 'Investment', 'Tax'],
-    rating: 4.9,
-    reviewCount: 156,
-    chatCount: 634,
-    responseTimeMinutes: 20,
-    experienceYears: 12,
-    isOnline: false,
-    isVerified: true,
-    color: '#4d4f94',
-    sectors: ['Finance'],
-    languages: ['English'],
-  },
-  {
-    id: '4',
-    username: '@EmpatheticJana',
-    title: 'Relationship Counsellor',
-    bio: 'Couples and family therapist specializing in communication, trust rebuilding, and healthy attachment styles.',
-    tags: ['Relationships', 'Family', 'Communication'],
-    rating: 5.0,
-    reviewCount: 89,
-    chatCount: 321,
-    responseTimeMinutes: 8,
-    experienceYears: 6,
-    isOnline: true,
-    isVerified: true,
-    color: '#843b61',
-    sectors: ['Relationships'],
-    languages: ['English', 'French'],
-  },
-]
+/** How many of the first page to surface in the featured strip. */
+const FEATURED_COUNT = 4
 
 const TESTIMONIALS = [
   {
@@ -104,12 +41,20 @@ const TESTIMONIALS = [
   },
 ]
 
-const CATEGORIES_DATA = [
-  { emoji: '💼', label: 'Career', count: 68, sector: 'Career' },
-  { emoji: '💛', label: 'Relationships', count: 54, sector: 'Relationships' },
-  { emoji: '📈', label: 'Finance', count: 47, sector: 'Finance' },
-  { emoji: '🧠', label: 'Mental Health', count: 79, sector: 'Mental+Health' },
-]
+/**
+ * Decorative only. There is no per-sector advisor count endpoint, so the pills
+ * deliberately show name + icon and nothing else — the numbers that used to sit
+ * here were invented.
+ */
+const SECTOR_EMOJI: Record<AdvisorSectorEnum, string> = {
+  CAREER: '💼',
+  RELATIONSHIPS: '💛',
+  FINANCE: '📈',
+  MENTAL_HEALTH: '🧠',
+  LIFE_COACHING: '🧭',
+  PARENTING: '🧸',
+  HEALTH_WELLNESS: '🌿',
+}
 
 const HOW_IT_WORKS = [
   {
@@ -135,9 +80,10 @@ const HOW_IT_WORKS = [
   },
 ]
 
-const AVATAR_COLORS = ['#005e8f', '#516000', '#4d4f94', '#843b61', '#784f00']
-
 export function LandingPage() {
+  const { advisors, isLoading, isError, errorMessage } = useAdvisors({ page: 0 })
+  const featured = advisors.slice(0, FEATURED_COUNT)
+
   return (
     <div className="min-h-screen">
       <Navbar />
@@ -150,10 +96,12 @@ export function LandingPage() {
           style={{ background: 'radial-gradient(ellipse at 60% 40%, #8b173d 0%, transparent 70%)' }}
         />
         <div className="relative max-w-7xl mx-auto px-4 py-20 md:py-28 text-center">
-          {/* Live pill */}
+          {/* Trust pill. Deliberately unquantified: there is no live "advisors
+              online" figure to read, and DESIGN.md rules out manufactured
+              urgency, so this states a fact rather than inventing a count. */}
           <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-sm font-medium mb-8">
-            <span className="w-2 h-2 rounded-full bg-pine-600 animate-pulse" />
-            1,200+ verified advisors online now
+            <span className="w-2 h-2 rounded-full bg-pine-600" />
+            Verified advisors available now
           </div>
 
           {/* Headline */}
@@ -186,45 +134,27 @@ export function LandingPage() {
             </Link>
           </div>
 
-          {/* Social proof */}
-          <div className="flex items-center justify-center gap-3">
-            <div className="flex -space-x-2">
-              {AVATAR_COLORS.map((color, i) => (
-                <div
-                  key={i}
-                  className="w-9 h-9 rounded-full border-2 border-ink-900 flex items-center justify-center text-white text-xs font-bold"
-                  style={{ background: color }}
-                >
-                  {String.fromCharCode(65 + i)}
-                </div>
-              ))}
-            </div>
-            <div className="text-left">
-              <div className="flex items-center gap-1">
-                <Star className="w-4 h-4 text-warn-500 fill-warn-500" />
-                <span className="font-semibold text-white">4.9★</span>
-              </div>
-              <p className="text-xs text-white/70">from 28,000+ sessions</p>
-            </div>
-          </div>
+          {/* The aggregate-rating block that sat here ("4.9★ from 28,000+
+              sessions", above a row of invented avatars) had no backend source.
+              Removed rather than restated with a different invented figure. */}
         </div>
       </section>
 
       {/* ── 2. CATEGORY PILLS ───────────────────────────────────────── */}
-      <section className="bg-white border-b border-ink-200 py-5">
+      <section aria-label="Browse by sector" className="bg-white border-b border-ink-200 py-5">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-wrap gap-3 justify-center">
-            {CATEGORIES_DATA.map((cat) => (
+            {/* Links carry the backend enum (`?sector=MENTAL_HEALTH`), which is
+                exactly what ExplorePage parses — the old `Mental+Health` value
+                matched nothing. */}
+            {ALL_SECTORS.map((value) => (
               <Link
-                key={cat.label}
-                to={`/explore?sector=${cat.sector}`}
+                key={value}
+                to={`/explore?sector=${value}`}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-ink-200 hover:border-oxblood-700 hover:bg-oxblood-50 transition-all text-sm font-medium text-ink-700 hover:text-oxblood-700"
               >
-                <span>{cat.emoji}</span>
-                <span>{cat.label}</span>
-                <span className="bg-ink-100 text-ink-500 text-xs font-semibold px-2 py-0.5 rounded-full">
-                  {cat.count}
-                </span>
+                <span aria-hidden="true">{SECTOR_EMOJI[value]}</span>
+                <span>{SECTOR_LABELS[value]}</span>
               </Link>
             ))}
           </div>
@@ -262,11 +192,26 @@ export function LandingPage() {
               View all →
             </Link>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {MOCK_ADVISORS.map((advisor) => (
-              <AdvisorCard key={advisor.id} advisor={advisor} />
-            ))}
-          </div>
+          {isError ? (
+            <ErrorBanner message={errorMessage ?? 'Something went wrong. Please try again.'} />
+          ) : isLoading ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {Array.from({ length: FEATURED_COUNT }, (_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          ) : featured.length === 0 ? (
+            <EmptyState
+              title="No advisors available yet"
+              description="Check back shortly — new advisors are verified regularly."
+            />
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {featured.map((advisor) => (
+                <AdvisorCard key={advisor.id} advisor={advisor} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -381,7 +326,7 @@ export function LandingPage() {
             Ready to get expert advice — for free?
           </h2>
           <p className="text-oxblood-100 mb-8 text-lg">
-            Join 28,000+ people who've already found clarity, direction, and peace of mind through AdvisorConnect.
+            Start a free, private conversation with a verified advisor — no credit card, no commitment.
           </p>
           <Link to="/explore">
             <Button variant="ghost" size="lg" className="bg-white text-oxblood-700 hover:bg-oxblood-50">Start Your Free Chat Now</Button>

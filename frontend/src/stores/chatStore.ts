@@ -39,7 +39,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   setAdvisorTyping: (advisorId, isTyping) =>
     set((s) => {
       const next = new Set(s.typingAdvisors)
-      isTyping ? next.add(advisorId) : next.delete(advisorId)
+      if (isTyping) next.add(advisorId)
+      else next.delete(advisorId)
       return { typingAdvisors: next }
     }),
 

@@ -18,6 +18,13 @@ spring:
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
+  jpa:
+    hibernate:
+      # Matches every other service's docker profile. The base profile ships `validate`, which
+      # was harmless while this service had no entities at all; now that `notifications` exists
+      # and the compose stack has no migration step, validate would fail startup against an
+      # empty notification_db.
+      ddl-auto: update
 
 mail:
   from: ${MAIL_FROM:noreply@advisorconnect.io}

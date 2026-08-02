@@ -1,5 +1,6 @@
 package com.advisorconnect.advisor.domain.model;
 
+import com.advisorconnect.advisor.infrastructure.persistence.AesGcmStringConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.Instant;
@@ -13,8 +14,11 @@ import java.util.UUID;
  * Privacy architecture:
  *  - Public fields (username, bio, sectors) are visible to admins during review
  *    and promoted to AdvisorProfile on approval.
- *  - Private PII fields (_enc suffix) are stored encrypted via pgcrypto at DB level.
- *  - Document S3 keys are never exposed in public API responses.
+ *  - Private PII fields (_enc suffix) are encrypted in the application layer by
+ *    {@link AesGcmStringConverter} before they ever reach the driver. An earlier version of
+ *    this comment claimed pgcrypto handled it at the DB level; nothing did, and these columns
+ *    held clear text.
+ *  - Document metadata (S3 keys included) is never exposed in public API responses.
  */
 @Entity
 @Table(name = "advisor_applications")
@@ -51,26 +55,36 @@ public class AdvisorApplication {
     @Column(columnDefinition = "TEXT")
     private String previousWork;
 
-    // ── Private identity fields (encrypted at rest via pgcrypto in DB)
+    // ── Private identity fields (AES-256-GCM, encrypted before leaving the JVM)
+    //
+    // These columns hold base64 ciphertext, not text. They are therefore not searchable,
+    // sortable or joinable — which is fine, because nothing legitimately queries on a person's
+    // date of birth. Widen the column definitions rather than the plaintext if they ever
+    // overflow: GCM output is IV(12) + plaintext + tag(16), base64-expanded by 4/3.
+    @Convert(converter = AesGcmStringConverter.class)
     @Column(name = "legal_first_name_enc")
     private String legalFirstName;
 
+    @Convert(converter = AesGcmStringConverter.class)
     @Column(name = "legal_last_name_enc")
     private String legalLastName;
 
+    @Convert(converter = AesGcmStringConverter.class)
     @Column(name = "date_of_birth_enc")
     private String dateOfBirth;
 
+    @Convert(converter = AesGcmStringConverter.class)
     @Column(name = "address_enc")
     private String addressFull;
 
+    @Convert(converter = AesGcmStringConverter.class)
     @Column(name = "country_enc")
     private String country;
 
-    // ── Document references (S3 object keys — never exposed via public API)
+    // ── Document references (never exposed via public API)
     @ElementCollection
     @CollectionTable(name = "application_documents")
-    private List<String> documentS3Keys;
+    private List<DocumentMetadata> documents;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

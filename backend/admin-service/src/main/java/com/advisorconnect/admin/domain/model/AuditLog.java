@@ -8,6 +8,17 @@ import java.util.UUID;
 @Table(name = "audit_logs")
 public class AuditLog {
 
+    /**
+     * Actor recorded for entries the platform writes about itself rather than about something a
+     * human administrator did — currently {@code ADVISOR_APPLICATION_SUBMITTED}, which is caused
+     * by the applicant, not by an admin.
+     *
+     * <p>A sentinel rather than {@code null} because {@code adminId} is {@code NOT NULL} and this
+     * service runs {@code ddl-auto: validate} against an externally-managed schema; relaxing the
+     * column would need a migration that does not exist in this repository.
+     */
+    public static final UUID SYSTEM_ACTOR = new UUID(0L, 0L);
+
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;

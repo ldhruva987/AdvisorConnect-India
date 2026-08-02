@@ -7,7 +7,8 @@ spring:
   cassandra:
     contact-points: ${CASSANDRA_HOST:localhost}
     port: ${CASSANDRA_PORT:9042}
-    keyspace-name: chat_keyspace
+    # Must match the keyspace created by scripts/cassandra/init.cql.
+    keyspace-name: ${CASSANDRA_KEYSPACE:chat_service}
     local-datacenter: datacenter1
     schema-action: create-if-not-exists
   kafka:
@@ -26,6 +27,12 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+
+# Required by JwtConfig: the WebSocket handshake verifies tokens itself rather than
+# trusting gateway-injected headers, so this must be byte-identical to auth-service's
+# signing secret. Default mirrors auth-service's for local development only.
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-here-make-it-long-enough}
 
 management:
   endpoints:

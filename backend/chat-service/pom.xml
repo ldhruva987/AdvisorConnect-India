@@ -16,6 +16,11 @@
 
   <dependencies>
     <dependency>
+      <groupId>com.advisorconnect</groupId>
+      <artifactId>common</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-websocket</artifactId>
     </dependency>
@@ -43,9 +48,54 @@
       <groupId>org.springframework.kafka</groupId>
       <artifactId>spring-kafka</artifactId>
     </dependency>
+
+    <!--
+      Testcontainers backs ChatServiceIT, which runs the real scripts/cassandra/init.cql
+      against a real Cassandra and round-trips a Message through it. Versions come from the
+      Spring Boot BOM's imported testcontainers-bom.
+    -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>cassandra</artifactId>
+      <scope>test</scope>
+      <exclusions>
+        <!--
+          The Testcontainers Cassandra module ships helpers built on the legacy DataStax
+          driver 3 (getCluster/withInitScript). Spring Data Cassandra uses driver 4, and
+          ChatServiceIT applies the schema through driver 4's CqlSession, so driver 3 is
+          excluded to keep two incompatible drivers off the same test classpath.
+        -->
+        <exclusion>
+          <groupId>com.datastax.cassandra</groupId>
+          <artifactId>cassandra-driver-core</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
   </dependencies>
 
   <build>
+    <testResources>
+      <testResource>
+        <directory>${project.basedir}/src/test/resources</directory>
+      </testResource>
+      <!--
+        Puts the *real* schema file on the test classpath rather than a copy. ChatServiceIT
+        exists to catch schema/entity drift (the `id` vs `message_id` mismatch it regresses),
+        which a duplicated fixture would silently hide.
+      -->
+      <testResource>
+        <directory>${project.basedir}/../scripts/cassandra</directory>
+        <includes>
+          <include>init.cql</include>
+        </includes>
+      </testResource>
+    </testResources>
+
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>

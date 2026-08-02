@@ -10,16 +10,20 @@ USE chat_service;
 -- Messages partitioned by (user_id, advisor_id) so all messages
 -- for a conversation are co-located; clustered by created_at DESC
 -- for efficient "latest N messages" queries.
+-- Column names here are the source of truth for Message.java's @PrimaryKeyColumn /
+-- @Column mappings: message_id (not `id`) and the `read` flag must both be present,
+-- otherwise reads/writes through Spring Data Cassandra fail on unknown columns.
 CREATE TABLE IF NOT EXISTS messages (
   user_id       uuid,
   advisor_id    uuid,
   created_at    timestamp,
-  id            uuid,
+  message_id    uuid,
   sender_id     uuid,
   sender_type   text,
   text          text,
-  PRIMARY KEY ((user_id, advisor_id), created_at, id)
-) WITH CLUSTERING ORDER BY (created_at DESC, id ASC)
+  read          boolean,
+  PRIMARY KEY ((user_id, advisor_id), created_at, message_id)
+) WITH CLUSTERING ORDER BY (created_at DESC, message_id ASC)
   AND default_time_to_live = 0
   AND gc_grace_seconds = 864000;
 

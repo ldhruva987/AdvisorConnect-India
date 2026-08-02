@@ -22,7 +22,9 @@ export function AdvisorCard({ advisor, onChatClick, onBookClick }: AdvisorCardPr
   const handleChatClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     onChatClick?.()
-    navigate('/chat')
+    // Must carry the advisor id: a bare `/chat` opens the inbox with no
+    // conversation selected, silently dropping the advisor the user clicked.
+    navigate(`/chat/${advisor.id}`)
   }
 
   const handleBookClick = (e: React.MouseEvent) => {

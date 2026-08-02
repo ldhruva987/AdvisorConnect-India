@@ -17,11 +17,36 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: auth-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        # Producers send Map.of(...) payloads, whose runtime type header names a JDK-internal
+        # immutable map that Jackson cannot instantiate. Ignoring the header and always
+        # deserialising into a plain HashMap keeps consumption decoupled from the producer's
+        # concrete collection type.
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: java.util.HashMap
 
 jwt:
   secret: ${JWT_SECRET:your-256-bit-secret-key-here-make-it-long-enough}
   access-token-expiry-ms: 900000      # 15 minutes
   refresh-token-expiry-ms: 604800000  # 7 days
+
+# First-administrator bootstrap. Blank by default: seeding is opt-in, and a deployment that
+# sets neither variable creates no privileged account. See AdminSeeder.
+admin:
+  seed:
+    email: ${ADMIN_SEED_EMAIL:}
+    password: ${ADMIN_SEED_PASSWORD:}
 
 management:
   endpoints:

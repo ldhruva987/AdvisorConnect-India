@@ -16,6 +16,11 @@
 
   <dependencies>
     <dependency>
+      <groupId>com.advisorconnect</groupId>
+      <artifactId>common</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
@@ -49,6 +54,30 @@
       <groupId>com.stripe</groupId>
       <artifactId>stripe-java</artifactId>
       <version>24.3.0</version>
+    </dependency>
+
+    <!-- Integration tests (*IT.java, run by Failsafe under `mvn verify`) exercise the real
+         Postgres slot-overlap query and a real Kafka broker. Versions come from the Spring
+         Boot BOM's testcontainers-bom import. -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>kafka</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka-test</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 

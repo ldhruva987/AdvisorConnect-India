@@ -18,6 +18,14 @@ spring:
             - Path=/api/users/**
           filters:
             - StripPrefix=1
+            # Mirrors the local profile. Rate limiting existed only in local dev, so the
+            # deployed gateway — the one actually exposed to the internet — was the single
+            # environment with no limit at all. Backed by the spring.data.redis connection
+            # configured below.
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
 
         - id: advisor-service
           uri: http://advisor-service:7183

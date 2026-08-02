@@ -13,6 +13,22 @@ spring:
       ddl-auto: validate
     properties:
       hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      group-id: admin-service
+      # The dashboard counters are accumulated from the log, so a fresh consumer group must
+      # start at the beginning rather than skipping everything published before it existed.
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        # Producers build payloads with Map.of, so JsonSerializer stamps the type header
+        # java.util.ImmutableCollections$MapN — a type Jackson cannot instantiate. Ignore the
+        # header and bind every payload to a plain HashMap, which is what the listeners take.
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: java.util.HashMap
 
 management:
   endpoints:

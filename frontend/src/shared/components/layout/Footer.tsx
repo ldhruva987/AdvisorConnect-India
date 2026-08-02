@@ -1,4 +1,13 @@
 import { Link } from 'react-router-dom'
+import { SECTOR_LABELS } from '@/lib/sectors'
+import type { AdvisorSectorEnum } from '@/lib/sectors'
+
+/**
+ * The subset of sectors the footer surfaces. Enum values, not labels: ExplorePage
+ * parses `?sector=` with `isAdvisorSectorEnum`, so the old `?sector=Mental+Health`
+ * links here matched nothing and landed on an unfiltered list.
+ */
+const FOOTER_SECTORS: AdvisorSectorEnum[] = ['CAREER', 'FINANCE', 'MENTAL_HEALTH', 'RELATIONSHIPS']
 
 export function Footer() {
   return (
@@ -11,7 +20,7 @@ export function Footer() {
           </div>
           {[
             { title: 'Platform', links: [{ label: 'Explore Advisors', to: '/explore' }, { label: 'Become an Advisor', to: '/onboarding' }, { label: 'Pricing', to: '/#pricing' }] },
-            { title: 'Sectors', links: [{ label: 'Career', to: '/explore?sector=Career' }, { label: 'Finance', to: '/explore?sector=Finance' }, { label: 'Mental Health', to: '/explore?sector=Mental+Health' }, { label: 'Relationships', to: '/explore?sector=Relationships' }] },
+            { title: 'Sectors', links: FOOTER_SECTORS.map((value) => ({ label: SECTOR_LABELS[value], to: `/explore?sector=${value}` })) },
             { title: 'Legal', links: [{ label: 'Privacy Policy', to: '/privacy' }, { label: 'Terms of Service', to: '/terms' }, { label: 'Advisor Agreement', to: '/advisor-terms' }] },
           ].map((col) => (
             <div key={col.title}>

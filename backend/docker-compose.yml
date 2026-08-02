@@ -315,6 +315,9 @@ services:
       MINIO_ACCESS_KEY: acminiouser
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-acminiopassword}
       MINIO_BUCKET_DOCUMENTS: advisor-documents
+      # Base64-encoded 32-byte AES-256 key for AdvisorApplication PII field encryption.
+      # Generate a real one for non-local use with: openssl rand -base64 32
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-cGxlYXNlLWNoYW5nZS10aGlzLTMyLWJ5dGUta2V5ISE=}
     ports:
       - "7183:7183"
     networks:

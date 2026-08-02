@@ -1,6 +1,7 @@
 package com.advisorconnect.advisor.adapter.in.web.dto;
 
 import com.advisorconnect.advisor.domain.model.AdvisorSector;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
@@ -50,7 +51,14 @@ public class SubmitApplicationRequest {
     @NotBlank
     private String country;
 
-    // Document S3 keys — uploaded separately via pre-signed URL endpoint
+    /**
+     * Identity documents, uploaded separately via the pre-signed URL endpoint and described here.
+     *
+     * <p>{@code @Valid} is load-bearing: without it Bean Validation stops at the list itself and
+     * every constraint inside {@link DocumentMetadataRequest} is skipped, so blank S3 keys would
+     * reach the database.
+     */
     @NotEmpty
-    private List<String> documentS3Keys;
+    @Valid
+    private List<DocumentMetadataRequest> documents;
 }

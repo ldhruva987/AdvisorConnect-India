@@ -7,7 +7,9 @@ import com.advisorconnect.advisor.domain.port.in.AdvisorCommandUseCase;
 import com.advisorconnect.advisor.domain.port.in.AdvisorQueryUseCase;
 import com.advisorconnect.advisor.domain.port.out.AdvisorApplicationRepository;
 import com.advisorconnect.advisor.domain.port.out.AdvisorProfileRepository;
+import com.advisorconnect.advisor.domain.port.out.UserEmailCacheRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -15,16 +17,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class AdvisorApplicationService implements AdvisorQueryUseCase, AdvisorCommandUseCase {
 
     private final AdvisorProfileRepository profileRepository;
     private final AdvisorApplicationRepository applicationRepository;
     private final AdvisorEventPublisher eventPublisher;
+    private final UserEmailCacheRepository userEmailCacheRepository;
 
     // ── Query use case ──────────────────────────────────────────────────────────
 
@@ -63,6 +69,15 @@ public class AdvisorApplicationService implements AdvisorQueryUseCase, AdvisorCo
                 .build();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AdvisorApplicationSummaryDto> getApplications(ApplicationStatus status, Pageable pageable) {
+        Page<AdvisorApplication> applications = status == null
+                ? applicationRepository.findAll(pageable)
+                : applicationRepository.findByStatus(status, pageable);
+        return applications.map(this::toSummaryDto);
+    }
+
     // ── Command use case ────────────────────────────────────────────────────────
 
     @Override
@@ -85,7 +100,7 @@ public class AdvisorApplicationService implements AdvisorQueryUseCase, AdvisorCo
                 .dateOfBirth(req.getDateOfBirth())
                 .addressFull(req.getAddressFull())
                 .country(req.getCountry())
-                .documentS3Keys(req.getDocumentS3Keys())
+                .documents(toDocuments(req.getDocuments()))
                 .status(ApplicationStatus.PENDING)
                 .build();
         app = applicationRepository.save(app);
@@ -114,7 +129,8 @@ public class AdvisorApplicationService implements AdvisorQueryUseCase, AdvisorCo
                 .isVerified(true)
                 .build();
         profileRepository.save(profile);
-        eventPublisher.publishAdvisorApproved(app.getUserId(), app.getUsername());
+        eventPublisher.publishAdvisorApproved(
+                app.getUserId(), app.getUsername(), adminId, lookupEmail(app.getUserId()));
     }
 
     @Override
@@ -126,7 +142,8 @@ public class AdvisorApplicationService implements AdvisorQueryUseCase, AdvisorCo
         app.setReviewedAt(Instant.now());
         app.setReviewedBy(adminId);
         applicationRepository.save(app);
-        eventPublisher.publishAdvisorRejected(applicationId, reason);
+        eventPublisher.publishAdvisorRejected(
+                applicationId, reason, adminId, lookupEmail(app.getUserId()));
     }
 
     @Override
@@ -139,7 +156,69 @@ public class AdvisorApplicationService implements AdvisorQueryUseCase, AdvisorCo
         applicationRepository.save(app);
     }
 
-    // ── Mapper ──────────────────────────────────────────────────────────────────
+    // ── Helpers ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Reads the advisor's email out of the local projection of auth-service's
+     * {@code user.registered} stream.
+     *
+     * <p>Returns null rather than throwing when the projection has no row. The email exists so
+     * notification-service can tell the applicant what was decided; a stale or incomplete cache
+     * is a notification problem, and refusing to approve a verified advisor over it would be a
+     * far worse failure than a missed email. The gap is logged so it is not silent.
+     */
+    private String lookupEmail(UUID userId) {
+        if (userId == null) {
+            return null;
+        }
+        return userEmailCacheRepository.findById(userId)
+                .map(UserEmailCache::getEmail)
+                .orElseGet(() -> {
+                    log.warn("No cached email for userId={} — decision event will carry none", userId);
+                    return null;
+                });
+    }
+
+    /**
+     * Stamps {@code uploadedAt} server-side and returns a mutable list — Hibernate manages an
+     * {@code @ElementCollection} in place, and handing it {@code Stream.toList()} would blow up
+     * on the first modification.
+     */
+    private static List<DocumentMetadata> toDocuments(List<DocumentMetadataRequest> requests) {
+        List<DocumentMetadata> documents = new ArrayList<>();
+        if (requests == null) {
+            return documents;
+        }
+        Instant now = Instant.now();
+        for (DocumentMetadataRequest d : requests) {
+            documents.add(DocumentMetadata.builder()
+                    .s3Key(d.getS3Key())
+                    .fileName(d.getFileName())
+                    .sizeBytes(d.getSizeBytes())
+                    .mimeType(d.getMimeType())
+                    .uploadedAt(now)
+                    .build());
+        }
+        return documents;
+    }
+
+    // ── Mappers ─────────────────────────────────────────────────────────────────
+
+    /** PII-free by construction — see {@link AdvisorApplicationSummaryDto}. */
+    private AdvisorApplicationSummaryDto toSummaryDto(AdvisorApplication app) {
+        return AdvisorApplicationSummaryDto.builder()
+                .id(app.getId())
+                .userId(app.getUserId())
+                .username(app.getUsername())
+                .professionalTitle(app.getProfessionalTitle())
+                .sectors(app.getSectors())
+                .qualification(app.getQualification())
+                .experienceYears(app.getExperienceYears())
+                .status(app.getStatus())
+                .submittedAt(app.getSubmittedAt())
+                .documentCount(app.getDocuments() == null ? 0 : app.getDocuments().size())
+                .build();
+    }
 
     private AdvisorPublicDto toPublicDto(AdvisorProfile p) {
         return AdvisorPublicDto.builder()

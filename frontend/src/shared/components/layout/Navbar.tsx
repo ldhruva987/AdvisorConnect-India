@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { Users } from 'lucide-react'
 import { Button } from '@/shared/components/ui/Button'
+import { NotificationDropdown } from '@/features/notifications/components/NotificationDropdown'
 import { useAuthStore } from '@/stores'
 
 const NAV_LINKS = [
@@ -32,12 +33,20 @@ export function Navbar() {
               {l.label}
             </Link>
           ))}
+          {/* Sessions belong to users and advisors alike, so this sits with the
+              public links rather than behind a role check — only behind auth. */}
+          {isAuthenticated && (
+            <Link to="/bookings" className="hover:text-oxblood-700 transition-colors">
+              My Bookings
+            </Link>
+          )}
         </nav>
 
         {/* Right CTA */}
         <div className="flex items-center gap-3">
           {isAuthenticated ? (
             <>
+              <NotificationDropdown />
               <Button variant="ghost" size="sm" onClick={() => navigate(dashboardPath)}>
                 {role === 'admin' ? 'Admin Panel' : 'Dashboard'}
               </Button>

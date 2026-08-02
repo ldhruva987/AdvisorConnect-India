@@ -1,47 +1,45 @@
 package com.advisorconnect.user.adapter.in.web;
 
+import com.advisorconnect.common.security.SecurityHeaders;
+import com.advisorconnect.user.application.UserProfileService;
 import com.advisorconnect.user.domain.model.UserProfile;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import org.springframework.http.ResponseEntity;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+/**
+ * Endpoint shapes are unchanged from the {@code EntityManager}-backed version — same paths, same
+ * response bodies, same 404 when a profile is missing. What changed is underneath: persistence
+ * goes through {@link UserProfileService} now, so the web layer no longer holds a
+ * {@code @PersistenceContext} and every read and write happens inside a transaction. The 404 is
+ * raised as {@code UserProfileNotFoundException} and mapped back to the same status by
+ * {@link GlobalExceptionHandler}.
+ */
 @RestController
 @RequestMapping("/users")
+@RequiredArgsConstructor
 public class UserController {
 
-    @PersistenceContext
-    private EntityManager em;
+    private final UserProfileService userProfileService;
 
     /** GET /users/{id} — returns public user profile */
     @GetMapping("/{id}")
-    public ResponseEntity<UserProfile> getProfile(@PathVariable UUID id) {
-        UserProfile profile = em.find(UserProfile.class, id);
-        if (profile == null) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(profile);
+    public UserProfile getProfile(@PathVariable UUID id) {
+        return userProfileService.getOrThrow(id);
     }
 
     /** GET /users/me — current authenticated user profile (resolved via gateway header) */
     @GetMapping("/me")
-    public ResponseEntity<UserProfile> getMyProfile(
-            @RequestHeader("X-User-Id") UUID userId) {
-        UserProfile profile = em.find(UserProfile.class, userId);
-        if (profile == null) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(profile);
+    public UserProfile getMyProfile(@RequestHeader(SecurityHeaders.X_USER_ID) UUID userId) {
+        return userProfileService.getOrThrow(userId);
     }
 
     /** PUT /users/me — update own profile */
     @PutMapping("/me")
-    public ResponseEntity<UserProfile> updateProfile(
-            @RequestHeader("X-User-Id") UUID userId,
-            @RequestBody UpdateProfileRequest req) {
-        UserProfile profile = em.find(UserProfile.class, userId);
-        if (profile == null) return ResponseEntity.notFound().build();
-        if (req.displayName() != null) profile.setDisplayName(req.displayName());
-        if (req.bio() != null) profile.setBio(req.bio());
-        return ResponseEntity.ok(profile);
+    public UserProfile updateProfile(@RequestHeader(SecurityHeaders.X_USER_ID) UUID userId,
+                                     @RequestBody UpdateProfileRequest req) {
+        return userProfileService.updateProfile(userId, req.displayName(), req.bio());
     }
 
     record UpdateProfileRequest(String displayName, String bio) {}

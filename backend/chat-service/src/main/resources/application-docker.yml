@@ -23,6 +23,11 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
 
+# Verified by JwtHandshakeInterceptor on every WebSocket handshake. No default: the
+# container must fail fast rather than silently accept tokens signed with a stand-in secret.
+jwt:
+  secret: ${JWT_SECRET}
+
 logging:
   level:
     com.advisorconnect: INFO
