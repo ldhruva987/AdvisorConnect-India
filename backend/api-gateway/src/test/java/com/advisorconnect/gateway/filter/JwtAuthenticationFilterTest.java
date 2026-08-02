@@ -85,6 +85,18 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    @DisplayName("GET /ws/chat is public — the browser cannot set an Authorization header on a "
+            + "WebSocket handshake, so chat-service verifies the ?token= param itself")
+    void chatWebSocketHandshakeIsPublic() {
+        var exchange = get("/ws/chat?token=whatever&advisorId=" + UUID.randomUUID());
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(chain.wasCalled()).isTrue();
+        assertNoIdentityHeadersInjected();
+    }
+
+    @Test
     @DisplayName("Actuator stays public under any method")
     void actuatorIsPublic() {
         for (ServerWebExchange exchange : new ServerWebExchange[]{
@@ -197,6 +209,16 @@ class JwtAuthenticationFilterTest {
         @DisplayName("An unrelated protected route with no token is rejected")
         void protectedRouteWithoutTokenIsRejected() {
             var exchange = get("/api/bookings/" + UUID.randomUUID());
+
+            filter.filter(exchange, chain).block();
+
+            assertRejected(exchange);
+        }
+
+        @Test
+        @DisplayName("Public routes are method-aware: POST /ws/chat is not the public GET handshake")
+        void wsRouteIsGetOnly() {
+            var exchange = post("/ws/chat");
 
             filter.filter(exchange, chain).block();
 

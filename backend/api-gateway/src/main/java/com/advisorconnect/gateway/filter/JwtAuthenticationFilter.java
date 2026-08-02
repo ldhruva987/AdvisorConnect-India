@@ -55,7 +55,16 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             // booking-service authenticates it by verifying the Stripe-Signature HMAC instead.
             // Without this entry the gateway would 401 every delivery and no booking would ever
             // leave PENDING.
-            new PublicRoute(HttpMethod.POST, "/api/bookings/webhooks/stripe")
+            new PublicRoute(HttpMethod.POST, "/api/bookings/webhooks/stripe"),
+            // The chat WebSocket handshake. The browser WebSocket constructor cannot set an
+            // Authorization header, so the token travels as a ?token= query parameter instead
+            // (see frontend buildChatSocketUrl and chat-service's JwtHandshakeInterceptor).
+            // This filter only ever checks the Authorization header, so without this entry every
+            // handshake was 401'd here before it reached chat-service's own independent JWT
+            // verification — chat never connected through the gateway at all. chat-service is the
+            // one that actually authenticates the caller for this route, exactly as booking-service
+            // does for the Stripe webhook above.
+            new PublicRoute(HttpMethod.GET,  "/ws/**")
     );
 
     /**

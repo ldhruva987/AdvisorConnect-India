@@ -4,6 +4,7 @@ import com.advisorconnect.booking.adapter.in.web.dto.BookingResponse;
 import com.advisorconnect.booking.adapter.in.web.dto.CreateBookingRequest;
 import com.advisorconnect.booking.adapter.out.messaging.BookingEventPublisher;
 import com.advisorconnect.booking.domain.model.Booking;
+import com.advisorconnect.booking.domain.model.BookingConflictException;
 import com.advisorconnect.booking.domain.model.BookingStatus;
 import com.advisorconnect.booking.domain.model.PaymentIntentResult;
 import com.advisorconnect.booking.domain.port.out.BookingRepository;
@@ -310,8 +311,73 @@ class BookingServiceTest {
             assertThatThrownBy(() -> bookingService.createBooking(request(30), clientId))
                     .isInstanceOf(PaymentGatewayException.class);
 
-            verifyNoInteractions(bookingRepository);
+            // The overlap check reads the calendar before any charge is attempted, so the
+            // repository is not untouched — but nothing is ever written to it.
+            verify(bookingRepository, never()).save(any());
             verifyNoInteractions(eventPublisher);
+        }
+
+        @Test
+        @DisplayName("a slot that overlaps an existing booking is refused before anything is "
+                + "charged, persisted or published")
+        void overlappingSlotIsRefused() {
+            givenExistingBookings(confirmed(at(10, 0), 30));
+
+            assertThatThrownBy(() -> bookingService.createBooking(request(30), clientId))
+                    .isInstanceOf(BookingConflictException.class)
+                    .hasMessageContaining("overlaps");
+
+            verifyNoInteractions(paymentGateway);
+            verify(bookingRepository, never()).save(any());
+            verify(eventPublisher, never()).publishBookingCreated(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a 60-minute booking already on the calendar blocks a request for its second half")
+        void overlapIsDetectedAcrossHalvesOfALongerBooking() {
+            givenExistingBookings(confirmed(at(10, 0), 60));
+
+            CreateBookingRequest req = request(30);
+            req.setSessionDateTime(at(10, 30));
+
+            assertThatThrownBy(() -> bookingService.createBooking(req, clientId))
+                    .isInstanceOf(BookingConflictException.class);
+
+            verifyNoInteractions(paymentGateway);
+        }
+
+        @Test
+        @DisplayName("a cancelled booking does not block a new request for the same slot")
+        void cancelledBookingDoesNotBlockCreation() {
+            Booking cancelled = confirmed(at(10, 0), 30);
+            cancelled.setStatus(BookingStatus.CANCELLED);
+            givenExistingBookings(cancelled);
+            givenPaymentIntent("pi_free", "pi_free_secret");
+            givenSaveAssignsAnId();
+
+            BookingResponse created = bookingService.createBooking(request(30), clientId);
+
+            assertThat(created.booking()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("a booking on a different day does not block the requested slot")
+        void bookingOnADifferentDayDoesNotBlock() {
+            given(bookingRepository.findByAdvisorIdAndSessionDateTimeBetween(
+                    eq(advisorId), any(Instant.class), any(Instant.class)))
+                    .willReturn(List.of());
+            givenPaymentIntent("pi_other_day", "pi_other_day_secret");
+            givenSaveAssignsAnId();
+
+            BookingResponse created = bookingService.createBooking(request(30), clientId);
+
+            assertThat(created.booking()).isNotNull();
+        }
+
+        private void givenExistingBookings(Booking... bookings) {
+            given(bookingRepository.findByAdvisorIdAndSessionDateTimeBetween(
+                    eq(advisorId), any(Instant.class), any(Instant.class)))
+                    .willReturn(List.of(bookings));
         }
 
         private void givenPaymentIntent(String id, String clientSecret) {

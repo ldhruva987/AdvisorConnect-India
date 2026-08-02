@@ -4,6 +4,7 @@ import com.advisorconnect.booking.adapter.in.web.dto.BookingResponse;
 import com.advisorconnect.booking.adapter.in.web.dto.CreateBookingRequest;
 import com.advisorconnect.booking.adapter.out.messaging.BookingEventPublisher;
 import com.advisorconnect.booking.domain.model.Booking;
+import com.advisorconnect.booking.domain.model.BookingConflictException;
 import com.advisorconnect.booking.domain.model.BookingStatus;
 import com.advisorconnect.booking.domain.model.PaymentIntentResult;
 import com.advisorconnect.booking.domain.model.PricingPolicy;
@@ -54,6 +55,12 @@ public class BookingService {
      * <p>The gateway is called before the row is written: if the charge cannot even be reserved,
      * nothing is persisted and no {@code booking.created} event is emitted.
      *
+     * <p>The advisor's calendar is re-checked for an overlap right before charging anything. This
+     * used to trust the client's earlier {@link #getAvailableSlots} read: nothing stopped two
+     * concurrent requests, or a client that simply ignored the availability list, from both
+     * creating and charging a booking for the same advisor/time slot.
+     *
+     * @throws BookingConflictException if the advisor already holds an overlapping booking
      * @return the persisted booking plus the client secret the browser needs to confirm payment
      */
     public BookingResponse createBooking(CreateBookingRequest req, UUID userId) {
@@ -63,6 +70,11 @@ public class BookingService {
 
         Instant start = req.getSessionDateTime();
         Instant end = start.plus(req.getDurationMinutes(), ChronoUnit.MINUTES);
+
+        if (hasOverlap(req.getAdvisorId(), start, end)) {
+            throw new BookingConflictException(
+                    "The advisor already has a booking that overlaps this time slot");
+        }
 
         // The booking id does not exist yet — it is generated on save — so reconciliation
         // metadata carries the participants and the slot instead. Stripe requires string values.
@@ -247,6 +259,26 @@ public class BookingService {
             cursor = cursor.plusMinutes(SLOT_MINUTES);
         }
         return available;
+    }
+
+    /**
+     * Whether the advisor already holds a live booking overlapping {@code [start, end)}.
+     *
+     * <p>Reuses the same day-window query and half-open-interval overlap test that
+     * {@link #getAvailableSlots} already relies on, rather than a new repository query: sessions
+     * only ever run within {@link #DAY_START}–{@link #DAY_END} on a single UTC day, so the
+     * existing day-boundary fetch already covers every booking that could overlap {@code start}.
+     */
+    private boolean hasOverlap(UUID advisorId, Instant start, Instant end) {
+        LocalDate day = start.atZone(ZoneOffset.UTC).toLocalDate();
+        Instant dayStart = day.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant dayEnd = day.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+
+        return bookingRepository.findByAdvisorIdAndSessionDateTimeBetween(advisorId, dayStart, dayEnd)
+                .stream()
+                .filter(BookingService::holdsTheSlot)
+                .anyMatch(existing -> new Interval(existing.getSessionDateTime(), endOf(existing))
+                        .overlaps(start, end));
     }
 
     /**
