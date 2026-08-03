@@ -6,7 +6,7 @@ import com.advisorconnect.booking.adapter.out.messaging.BookingEventPublisher;
 import com.advisorconnect.booking.domain.model.Booking;
 import com.advisorconnect.booking.domain.model.BookingConflictException;
 import com.advisorconnect.booking.domain.model.BookingStatus;
-import com.advisorconnect.booking.domain.model.PaymentIntentResult;
+import com.advisorconnect.booking.domain.model.PaymentOrderResult;
 import com.advisorconnect.booking.domain.port.out.BookingRepository;
 import com.advisorconnect.booking.domain.port.out.PaymentGateway;
 import com.advisorconnect.booking.domain.port.out.PaymentGatewayException;
@@ -100,7 +100,7 @@ class BookingServiceTest {
         }
 
         @Test
-        @DisplayName("an unrelated user is refused — this leaked stripePaymentIntentId before")
+        @DisplayName("an unrelated user is refused — this leaked razorpayOrderId before")
         void strangerIsRefused() {
             given(bookingRepository.findById(bookingId)).willReturn(Optional.of(booking()));
 
@@ -230,7 +230,7 @@ class BookingServiceTest {
         @Test
         @DisplayName("a 60-minute booking stores an end time an hour after its start")
         void endTimeIsDerivedFromDuration() {
-            givenPaymentIntent("pi_60", "pi_60_secret");
+            givenPaymentOrder("order_60");
             givenSaveAssignsAnId();
 
             bookingService.createBooking(request(60), clientId);
@@ -238,19 +238,19 @@ class BookingServiceTest {
             Booking saved = capturedBooking();
             assertThat(saved.getSessionEndDateTime())
                     .isEqualTo(saved.getSessionDateTime().plus(60, ChronoUnit.MINUTES));
-            assertThat(saved.getAmountCharged()).isEqualByComparingTo(new BigDecimal("90.00"));
+            assertThat(saved.getAmountCharged()).isEqualByComparingTo(new BigDecimal("900.00"));
         }
 
         @Test
-        @DisplayName("a 30-minute booking is charged $50 and publishes booking.created")
+        @DisplayName("a 30-minute booking is charged ₹500 and publishes booking.created")
         void thirtyMinuteBookingIsPricedAndPublished() {
-            givenPaymentIntent("pi_30", "pi_30_secret");
+            givenPaymentOrder("order_30");
             givenSaveAssignsAnId();
 
             BookingResponse created = bookingService.createBooking(request(30), clientId);
 
             assertThat(created.booking().getAmountCharged())
-                    .isEqualByComparingTo(new BigDecimal("50.00"));
+                    .isEqualByComparingTo(new BigDecimal("500.00"));
             // No cached email for this client, so the event ships a blank address rather than
             // failing the booking; the confirmation is what degrades.
             verify(eventPublisher)
@@ -258,37 +258,37 @@ class BookingServiceTest {
         }
 
         @Test
-        @DisplayName("the booking starts PENDING and carries the gateway's real payment intent id — "
+        @DisplayName("the booking starts PENDING and carries the gateway's real order id — "
                 + "it used to be saved CONFIRMED with a fabricated pi_placeholder_ id")
-        void bookingStartsPendingWithTheRealIntentId() {
-            givenPaymentIntent("pi_3Nx9aB2eZvKYlo2C", "pi_3Nx9aB2eZvKYlo2C_secret_xyz");
+        void bookingStartsPendingWithTheRealOrderId() {
+            givenPaymentOrder("order_DESlLckIVRkHWj");
             givenSaveAssignsAnId();
 
             BookingResponse created = bookingService.createBooking(request(30), clientId);
 
             Booking saved = capturedBooking();
             assertThat(saved.getStatus()).isEqualTo(BookingStatus.PENDING);
-            assertThat(saved.getStripePaymentIntentId()).isEqualTo("pi_3Nx9aB2eZvKYlo2C");
-            assertThat(saved.getStripePaymentIntentId()).doesNotContain("placeholder");
-            assertThat(created.clientSecret()).isEqualTo("pi_3Nx9aB2eZvKYlo2C_secret_xyz");
+            assertThat(saved.getRazorpayOrderId()).isEqualTo("order_DESlLckIVRkHWj");
+            assertThat(saved.getRazorpayOrderId()).doesNotContain("placeholder");
+            assertThat(created.razorpayOrderId()).isEqualTo("order_DESlLckIVRkHWj");
         }
 
         @Test
-        @DisplayName("the price charged to the gateway is the price recorded on the booking, in usd")
+        @DisplayName("the price charged to the gateway is the price recorded on the booking, in INR")
         void theGatewayIsChargedTheBookedPrice() {
-            givenPaymentIntent("pi_60", "pi_60_secret");
+            givenPaymentOrder("order_60");
             givenSaveAssignsAnId();
 
             bookingService.createBooking(request(60), clientId);
 
-            verify(paymentGateway).createPaymentIntent(
-                    eq(new BigDecimal("90.00")), eq("usd"), any());
+            verify(paymentGateway).createOrder(
+                    eq(new BigDecimal("900.00")), eq("INR"), any());
         }
 
         @Test
-        @DisplayName("payment metadata identifies the parties, so a Stripe charge can be reconciled")
+        @DisplayName("payment metadata identifies the parties, so a Razorpay charge can be reconciled")
         void metadataIdentifiesTheParties() {
-            givenPaymentIntent("pi_30", "pi_30_secret");
+            givenPaymentOrder("order_30");
             givenSaveAssignsAnId();
 
             bookingService.createBooking(request(30), clientId);
@@ -296,7 +296,7 @@ class BookingServiceTest {
             @SuppressWarnings("unchecked")
             ArgumentCaptor<Map<String, String>> metadata = ArgumentCaptor.forClass(Map.class);
             verify(paymentGateway)
-                    .createPaymentIntent(any(BigDecimal.class), any(String.class), metadata.capture());
+                    .createOrder(any(BigDecimal.class), any(String.class), metadata.capture());
             assertThat(metadata.getValue())
                     .containsEntry("userId", clientId.toString())
                     .containsEntry("advisorId", advisorId.toString());
@@ -306,7 +306,7 @@ class BookingServiceTest {
         @DisplayName("if the charge cannot be reserved nothing is persisted and no event escapes")
         void aGatewayFailureLeavesNoBooking() {
             willThrow(new PaymentGatewayException("boom", new RuntimeException()))
-                    .given(paymentGateway).createPaymentIntent(any(), any(), any());
+                    .given(paymentGateway).createOrder(any(), any(), any());
 
             assertThatThrownBy(() -> bookingService.createBooking(request(30), clientId))
                     .isInstanceOf(PaymentGatewayException.class);
@@ -352,7 +352,7 @@ class BookingServiceTest {
             Booking cancelled = confirmed(at(10, 0), 30);
             cancelled.setStatus(BookingStatus.CANCELLED);
             givenExistingBookings(cancelled);
-            givenPaymentIntent("pi_free", "pi_free_secret");
+            givenPaymentOrder("order_free");
             givenSaveAssignsAnId();
 
             BookingResponse created = bookingService.createBooking(request(30), clientId);
@@ -366,7 +366,7 @@ class BookingServiceTest {
             given(bookingRepository.findByAdvisorIdAndSessionDateTimeBetween(
                     eq(advisorId), any(Instant.class), any(Instant.class)))
                     .willReturn(List.of());
-            givenPaymentIntent("pi_other_day", "pi_other_day_secret");
+            givenPaymentOrder("order_other_day");
             givenSaveAssignsAnId();
 
             BookingResponse created = bookingService.createBooking(request(30), clientId);
@@ -380,9 +380,9 @@ class BookingServiceTest {
                     .willReturn(List.of(bookings));
         }
 
-        private void givenPaymentIntent(String id, String clientSecret) {
-            given(paymentGateway.createPaymentIntent(any(), any(), any()))
-                    .willReturn(new PaymentIntentResult(id, clientSecret));
+        private void givenPaymentOrder(String orderId) {
+            given(paymentGateway.createOrder(any(), any(), any()))
+                    .willReturn(new PaymentOrderResult(orderId));
         }
 
         private void givenSaveAssignsAnId() {
@@ -403,16 +403,16 @@ class BookingServiceTest {
     @DisplayName("confirmBooking / failBooking")
     class WebhookTransitions {
 
-        private static final String INTENT_ID = "pi_3Nx9aB2eZvKYlo2C";
+        private static final String ORDER_ID = "order_3Nx9aB2eZvKYlo2C";
 
         @Test
         @DisplayName("a succeeded payment moves the booking from PENDING to CONFIRMED")
         void successConfirms() {
             Booking pending = pending();
-            given(bookingRepository.findByStripePaymentIntentId(INTENT_ID))
+            given(bookingRepository.findByRazorpayOrderId(ORDER_ID))
                     .willReturn(Optional.of(pending));
 
-            bookingService.confirmBooking(INTENT_ID);
+            bookingService.confirmBooking(ORDER_ID);
 
             assertThat(pending.getStatus()).isEqualTo(BookingStatus.CONFIRMED);
             verify(bookingRepository).save(pending);
@@ -422,24 +422,24 @@ class BookingServiceTest {
         @DisplayName("a failed payment moves the booking to FAILED, not CANCELLED — nobody withdrew")
         void failureMarksFailed() {
             Booking pending = pending();
-            given(bookingRepository.findByStripePaymentIntentId(INTENT_ID))
+            given(bookingRepository.findByRazorpayOrderId(ORDER_ID))
                     .willReturn(Optional.of(pending));
 
-            bookingService.failBooking(INTENT_ID);
+            bookingService.failBooking(ORDER_ID);
 
             assertThat(pending.getStatus()).isEqualTo(BookingStatus.FAILED);
             verify(bookingRepository).save(pending);
         }
 
         @Test
-        @DisplayName("a redelivered confirmation is a no-op — Stripe retries until it sees a 2xx")
+        @DisplayName("a redelivered confirmation is a no-op — Razorpay retries until it sees a 2xx")
         void confirmationIsIdempotent() {
             Booking alreadyConfirmed = pending();
             alreadyConfirmed.setStatus(BookingStatus.CONFIRMED);
-            given(bookingRepository.findByStripePaymentIntentId(INTENT_ID))
+            given(bookingRepository.findByRazorpayOrderId(ORDER_ID))
                     .willReturn(Optional.of(alreadyConfirmed));
 
-            bookingService.confirmBooking(INTENT_ID);
+            bookingService.confirmBooking(ORDER_ID);
 
             verify(bookingRepository, never()).save(any());
         }
@@ -449,23 +449,23 @@ class BookingServiceTest {
         void failureDoesNotOverwriteANonPendingStatus() {
             Booking cancelled = pending();
             cancelled.setStatus(BookingStatus.CANCELLED);
-            given(bookingRepository.findByStripePaymentIntentId(INTENT_ID))
+            given(bookingRepository.findByRazorpayOrderId(ORDER_ID))
                     .willReturn(Optional.of(cancelled));
 
-            bookingService.failBooking(INTENT_ID);
+            bookingService.failBooking(ORDER_ID);
 
             assertThat(cancelled.getStatus()).isEqualTo(BookingStatus.CANCELLED);
             verify(bookingRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("an unknown payment intent is ignored rather than thrown on, so Stripe stops retrying")
-        void unknownIntentIsIgnored() {
-            given(bookingRepository.findByStripePaymentIntentId(INTENT_ID))
+        @DisplayName("an unknown order id is ignored rather than thrown on, so Razorpay stops retrying")
+        void unknownOrderIsIgnored() {
+            given(bookingRepository.findByRazorpayOrderId(ORDER_ID))
                     .willReturn(Optional.empty());
 
-            bookingService.confirmBooking(INTENT_ID);
-            bookingService.failBooking(INTENT_ID);
+            bookingService.confirmBooking(ORDER_ID);
+            bookingService.failBooking(ORDER_ID);
 
             verify(bookingRepository, never()).save(any());
         }
@@ -473,7 +473,7 @@ class BookingServiceTest {
         private Booking pending() {
             Booking b = confirmed(at(10, 0), 30);
             b.setStatus(BookingStatus.PENDING);
-            b.setStripePaymentIntentId(INTENT_ID);
+            b.setRazorpayOrderId(ORDER_ID);
             return b;
         }
     }
@@ -537,7 +537,7 @@ class BookingServiceTest {
         @DisplayName("booking.created carries the cached email")
         void createdCarriesTheCachedEmail() {
             givenCachedEmail(EMAIL);
-            givenPaymentIntent("pi_email", "pi_email_secret");
+            givenPaymentOrder("order_email");
             givenSaveAssignsAnId();
 
             BookingResponse created = bookingService.createBooking(request(30), clientId);
@@ -562,7 +562,7 @@ class BookingServiceTest {
         void cacheMissDoesNotBlockTheBooking() {
             // Default Mockito behaviour for an Optional-returning method is Optional.empty(),
             // i.e. the user registered a moment ago and the event has not been consumed yet.
-            givenPaymentIntent("pi_nocache", "pi_nocache_secret");
+            givenPaymentOrder("order_nocache");
             givenSaveAssignsAnId();
 
             BookingResponse created = bookingService.createBooking(request(30), clientId);
@@ -577,9 +577,9 @@ class BookingServiceTest {
                     Optional.of(UserEmailCache.builder().id(clientId).email(email).build()));
         }
 
-        private void givenPaymentIntent(String id, String clientSecret) {
-            given(paymentGateway.createPaymentIntent(any(), any(), any()))
-                    .willReturn(new PaymentIntentResult(id, clientSecret));
+        private void givenPaymentOrder(String orderId) {
+            given(paymentGateway.createOrder(any(), any(), any()))
+                    .willReturn(new PaymentOrderResult(orderId));
         }
 
         private void givenSaveAssignsAnId() {
@@ -602,9 +602,9 @@ class BookingServiceTest {
                 .sessionDateTime(start)
                 .sessionEndDateTime(start.plus(durationMinutes, ChronoUnit.MINUTES))
                 .durationMinutes(durationMinutes)
-                .amountCharged(new BigDecimal("50.00"))
+                .amountCharged(new BigDecimal("500.00"))
                 .status(BookingStatus.CONFIRMED)
-                .stripePaymentIntentId("pi_test")
+                .razorpayOrderId("order_test")
                 .build();
     }
 
@@ -613,7 +613,6 @@ class BookingServiceTest {
         req.setAdvisorId(advisorId);
         req.setSessionDateTime(at(10, 0));
         req.setDurationMinutes(durationMinutes);
-        req.setStripePaymentMethodId("pm_test");
         return req;
     }
 

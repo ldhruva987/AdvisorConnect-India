@@ -74,8 +74,8 @@ class BookingCompletionSchedulerTest {
         verify(eventPublisher).publishBookingCompleted(
                 finished.getId(), finished.getUserId(), finished.getAdvisorId(), "",
                 // The amount travels with the event: admin-service's revenue total is built from
-                // this field alone, so a sweep that dropped it would leave the dashboard at $0.00.
-                new BigDecimal("50.00"));
+                // this field alone, so a sweep that dropped it would leave the dashboard at ₹0.00.
+                new BigDecimal("500.00"));
     }
 
     @Test
@@ -218,9 +218,9 @@ class BookingCompletionSchedulerTest {
                 .sessionDateTime(start)
                 .sessionEndDateTime(end)
                 .durationMinutes(30)
-                .amountCharged(new BigDecimal("50.00"))
+                .amountCharged(new BigDecimal("500.00"))
                 .status(status)
-                .stripePaymentIntentId("pi_" + UUID.randomUUID())
+                .razorpayOrderId("order_" + UUID.randomUUID())
                 .build();
     }
 }

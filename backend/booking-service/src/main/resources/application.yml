@@ -19,13 +19,14 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
-stripe:
-  secret-key: ${STRIPE_SECRET_KEY:sk_test_placeholder}
-  # Supplied per environment from the Stripe dashboard's endpoint signing secret. Blank by
+razorpay:
+  key-id: ${RAZORPAY_KEY_ID:rzp_test_placeholder}
+  key-secret: ${RAZORPAY_KEY_SECRET:placeholder}
+  # Supplied per environment from the Razorpay dashboard's webhook signing secret. Blank by
   # default, mirroring application-docker.yml: with no value every webhook delivery fails
   # signature verification and is rejected, which is the correct posture for an environment
   # that has not been told which endpoint it is.
-  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+  webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
 
 management:
   endpoints:

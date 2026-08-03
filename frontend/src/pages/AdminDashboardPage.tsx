@@ -84,9 +84,9 @@ function formatCount(value: number): string {
   return value.toLocaleString('en-US')
 }
 
-/** `AdminStats.platformRevenue` is minor units (cents), per the DTO contract. */
-function formatRevenue(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString('en-US')}`
+/** `AdminStats.platformRevenue` is minor units (paise), per the DTO contract. */
+function formatRevenue(paise: number): string {
+  return `₹${Math.round(paise / 100).toLocaleString('en-IN')}`
 }
 
 function formatDate(iso: string): string {

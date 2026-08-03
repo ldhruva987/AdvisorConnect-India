@@ -20,13 +20,10 @@ public class CreateBookingRequest {
      * Session length. Only the two products that actually exist are accepted.
      *
      * <p>This was {@code @Min(30) @Max(60)}, which admitted 31..59 — durations with no price,
-     * and which the pricing ternary quietly charged $90 for.
+     * and which the pricing ternary quietly charged ₹900 for.
      */
     @NotNull
     private Integer durationMinutes;
-
-    @NotBlank
-    private String stripePaymentMethodId;
 
     /**
      * Bean Validation has no "one of these literals" constraint for numbers, and the codebase

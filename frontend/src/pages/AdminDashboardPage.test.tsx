@@ -45,7 +45,7 @@ const FULL_STATS: AdminStatsDto = {
   pendingApplications: 7,
   activeAdvisors: 42,
   totalUsers: 1284,
-  platformRevenue: 953_400, // minor units → $9,534
+  platformRevenue: 953_400, // minor units (paise) → ₹9,534
 }
 
 function useFullStats() {
@@ -134,7 +134,7 @@ describe('AdminDashboardPage', () => {
       renderAdmin()
 
       // Minor units are divided down, not printed raw.
-      expect(await screen.findByText('$9,534')).toBeInTheDocument()
+      expect(await screen.findByText('₹9,534')).toBeInTheDocument()
       expect(screen.queryByText('953400')).not.toBeInTheDocument()
       expect(within(statTile('Pending Applications')).getByText('7')).toBeInTheDocument()
       expect(within(statTile('Active Advisors')).getByText('42')).toBeInTheDocument()

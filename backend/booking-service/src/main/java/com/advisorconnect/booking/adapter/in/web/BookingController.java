@@ -28,12 +28,12 @@ public class BookingController {
     private final BookingService bookingService;
 
     /**
-     * Creates a booking in {@code PENDING} and returns it together with the Stripe client secret.
+     * Creates a booking in {@code PENDING} and returns it together with the Razorpay order id.
      *
      * <p>Returns {@link BookingResponse} rather than the bare {@code Booking} it used to: the
-     * client secret is needed to actually complete the payment and is not a persisted field.
-     * The booking becomes {@code CONFIRMED} only once Stripe's webhook reports the charge
-     * succeeded.
+     * order id is needed to actually open Razorpay Checkout and complete the payment.
+     * The booking becomes {@code CONFIRMED} only once Razorpay's webhook reports the charge
+     * captured.
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -55,7 +55,7 @@ public class BookingController {
     /**
      * A booking by id, visible to the client who booked it, the advisor on the session, and
      * admins. Previously any authenticated caller could read any booking — including its
-     * Stripe payment intent id.
+     * Razorpay order id.
      */
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")

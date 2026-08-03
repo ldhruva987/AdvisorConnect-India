@@ -23,8 +23,8 @@ public class JpaBookingRepository implements BookingRepository {
         return repo.findByAdvisorIdAndSessionDateTimeBetween(advisorId, from, to);
     }
     @Override public List<Booking> findByUserId(UUID userId) { return repo.findByUserId(userId); }
-    @Override public Optional<Booking> findByStripePaymentIntentId(String stripePaymentIntentId) {
-        return repo.findByStripePaymentIntentId(stripePaymentIntentId);
+    @Override public Optional<Booking> findByRazorpayOrderId(String razorpayOrderId) {
+        return repo.findByRazorpayOrderId(razorpayOrderId);
     }
     @Override public List<Booking> findByStatusAndSessionEndDateTimeBefore(BookingStatus status, Instant before) {
         return repo.findByStatusAndSessionEndDateTimeBefore(status, before);

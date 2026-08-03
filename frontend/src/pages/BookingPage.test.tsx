@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import userEvent from '@testing-library/user-event'
@@ -8,56 +7,65 @@ import {
   MOCK_AVAILABILITY_DATE,
   MOCK_AVAILABLE_SLOTS,
   MOCK_CREATED_BOOKING,
+  MOCK_RAZORPAY_ORDER_ID,
 } from '@/test/mocks/handlers/bookings'
 import { render, screen, waitFor, within } from '@/test/test-utils'
-import type { Booking } from '@/types'
-import type { CreateBookingRequest, CreatePaymentIntentRequest } from '@/types/api'
+import type { CreateBookingRequest, CreateBookingResponse } from '@/types/api'
+import type { RazorpayCheckoutOptions, RazorpayPaymentResponse } from '@/lib/razorpay'
 import { BookingPage } from './BookingPage'
 
 /* -------------------------------------------------------------------------- */
-/* Stripe double                                                              */
+/* Razorpay double                                                            */
 /* -------------------------------------------------------------------------- */
 
 /**
  * Everything in here has to exist before `./BookingPage` is evaluated, which is
  * why it lives in `vi.hoisted`:
  *
- *  - the publishable key is read at module scope, and without it the page
- *    short-circuits to a "payments are unavailable" banner and none of the
- *    payment flow is reachable;
- *  - `loadStripe` is called at module scope too.
- *
- * `@stripe/react-stripe-js` is mocked rather than driven for real because
- * `<PaymentElement>` is a cross-origin iframe: there is nothing in jsdom to
- * type a card number into. What this file can and does verify is the contract
- * the page owns — that it confirms the payment *before* creating the booking,
- * passes the right identifiers, and handles both outcomes.
+ *  - the key id is read at module scope, and without it the page short-circuits
+ *    to a "payments are unavailable" banner and none of the payment flow is
+ *    reachable;
+ *  - `@/lib/razorpay` is mocked rather than driven for real because Razorpay's
+ *    Checkout is a real hosted modal loaded from an external script — there is
+ *    nothing in jsdom to render it or type a card number into. What this file
+ *    can and does verify is the contract the page owns: that it creates the
+ *    booking first, opens Checkout with the order id the backend returned, and
+ *    handles both a successful payment and a dismissed modal correctly.
  */
-const stripeDouble = vi.hoisted(() => {
-  vi.stubEnv('VITE_STRIPE_PUBLISHABLE_KEY', 'pk_test_booking_page')
+const razorpayDouble = vi.hoisted(() => {
+  vi.stubEnv('VITE_RAZORPAY_KEY_ID', 'rzp_test_booking_page')
 
-  const confirmPayment = vi.fn()
   return {
-    confirmPayment,
-    instance: { confirmPayment },
-    /** Flipped off to exercise the "Stripe hasn't initialised yet" branch. */
-    ready: true,
+    load: vi.fn(() => Promise.resolve()),
+    open: vi.fn(),
+    /** The options passed to the most recent openRazorpayCheckout() call. */
+    lastOptions: undefined as RazorpayCheckoutOptions | undefined,
   }
 })
 
-vi.mock('@stripe/stripe-js', () => ({
-  // The real implementation injects a <script> tag at import time.
-  loadStripe: vi.fn(() => Promise.resolve(null)),
+vi.mock('@/lib/razorpay', () => ({
+  loadRazorpayCheckout: () => razorpayDouble.load(),
+  openRazorpayCheckout: (options: RazorpayCheckoutOptions) => {
+    razorpayDouble.lastOptions = options
+    razorpayDouble.open(options)
+    return { open: vi.fn() }
+  },
 }))
 
-vi.mock('@stripe/react-stripe-js', () => ({
-  Elements: ({ children }: { children: ReactNode }) => (
-    <div data-testid="stripe-elements">{children}</div>
-  ),
-  PaymentElement: () => <div data-testid="payment-element" />,
-  useStripe: () => (stripeDouble.ready ? stripeDouble.instance : null),
-  useElements: () => (stripeDouble.ready ? {} : null),
-}))
+/** Fires the `handler` the page registered, as Checkout would on a successful payment. */
+function completeCheckoutPayment() {
+  const response: RazorpayPaymentResponse = {
+    razorpay_payment_id: 'pay_test_1',
+    razorpay_order_id: MOCK_RAZORPAY_ORDER_ID,
+    razorpay_signature: 'sig_test_1',
+  }
+  razorpayDouble.lastOptions?.handler(response)
+}
+
+/** Fires the `modal.ondismiss` the page registered, as Checkout would on a closed modal. */
+function dismissCheckout() {
+  razorpayDouble.lastOptions?.modal?.ondismiss?.()
+}
 
 /* -------------------------------------------------------------------------- */
 /* Fixtures & helpers                                                         */
@@ -100,11 +108,14 @@ function captureBookings(): CreateBookingRequest[] {
       bodies.push(body)
       return HttpResponse.json(
         {
-          ...MOCK_CREATED_BOOKING,
-          advisorId: body.advisorId,
-          sessionDate: body.sessionDateTime,
-          durationMinutes: body.durationMinutes,
-        } satisfies Booking,
+          booking: {
+            ...MOCK_CREATED_BOOKING,
+            advisorId: body.advisorId,
+            sessionDate: body.sessionDateTime,
+            durationMinutes: body.durationMinutes,
+          },
+          razorpayOrderId: MOCK_RAZORPAY_ORDER_ID,
+        } satisfies CreateBookingResponse,
         { status: 201 },
       )
     }),
@@ -112,10 +123,7 @@ function captureBookings(): CreateBookingRequest[] {
   return bodies
 }
 
-/**
- * Drives the page to the point where `<PaymentElement>` is mounted: advisor
- * loaded → day picked → slot picked → PaymentIntent created.
- */
+/** Drives the page to the point where the pay button is available: advisor loaded → day picked → slot picked. */
 async function reachPayment(
   user: ReturnType<typeof userEvent.setup>,
   options: { advisorId?: string; duration?: 30 | 60 } = {},
@@ -130,12 +138,12 @@ async function reachPayment(
 
   await user.click(screen.getByRole('button', { name: SLOT_DAY_LABEL }))
   await user.click(await screen.findByRole('button', { name: slotLabel(FIRST_SLOT) }))
-  await screen.findByTestId('payment-element')
+  await screen.findByRole('button', { name: /confirm & pay/i })
 
   return result
 }
 
-const payButton = () => screen.getByRole('button', { name: /confirm & pay/i })
+const payButton = () => screen.getByRole('button', { name: /confirm & pay|retry payment/i })
 
 beforeEach(() => {
   // Only `Date` is faked. Leaving `setTimeout` real keeps MSW, react-query and
@@ -143,11 +151,10 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(FROZEN_NOW)
 
-  stripeDouble.ready = true
-  stripeDouble.confirmPayment.mockReset()
-  stripeDouble.confirmPayment.mockResolvedValue({
-    paymentIntent: { id: 'pi_test_1', payment_method: 'pm_test_1', status: 'succeeded' },
-  })
+  razorpayDouble.lastOptions = undefined
+  razorpayDouble.load.mockClear()
+  razorpayDouble.load.mockResolvedValue(undefined)
+  razorpayDouble.open.mockClear()
 })
 
 afterEach(() => {
@@ -332,102 +339,54 @@ describe('BookingPage', () => {
 
       await user.click(screen.getByRole('button', { name: EMPTY_DAY_LABEL }))
 
-      expect(screen.queryByTestId('payment-element')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /confirm & pay/i })).not.toBeInTheDocument()
       expect(screen.getByText('Choose a date and time to continue to payment.')).toBeInTheDocument()
     })
   })
 
-  describe('payment intent', () => {
-    it('is created for the advisor, duration and slot on screen', async () => {
-      const intents: CreatePaymentIntentRequest[] = []
-      server.use(
-        http.post('*/api/bookings/payment-intent', async ({ request }) => {
-          intents.push((await request.json()) as CreatePaymentIntentRequest)
-          return HttpResponse.json({ clientSecret: 'pi_test_secret_123', amount: 9000 })
-        }),
-      )
-      const user = userEvent.setup()
-      await reachPayment(user, { duration: 60 })
-
-      expect(intents).toEqual([
-        { advisorId: 'advisor-1', durationMinutes: 60, slot: FIRST_SLOT },
-      ])
-    })
-
-    it('holds the payment form back until the intent resolves', async () => {
-      // Gated rather than timed: the default handler answers within the same
-      // tick as the click, so the loading state would never be observable.
-      let release!: () => void
-      const gate = new Promise<void>((resolve) => {
-        release = resolve
-      })
-      server.use(
-        http.post('*/api/bookings/payment-intent', async () => {
-          await gate
-          return HttpResponse.json({ clientSecret: 'pi_test_secret_123', amount: 4500 })
-        }),
-      )
-      const user = userEvent.setup()
-      renderBooking()
-      await screen.findByRole('heading', { name: 'Select Date — August 2026' })
-      await user.click(screen.getByRole('button', { name: SLOT_DAY_LABEL }))
-      await user.click(await screen.findByRole('button', { name: slotLabel(FIRST_SLOT) }))
-
-      expect(screen.getByRole('status', { name: /preparing secure payment/i })).toBeInTheDocument()
-      expect(screen.queryByTestId('payment-element')).not.toBeInTheDocument()
-
-      release()
-      expect(await screen.findByTestId('payment-element')).toBeInTheDocument()
-    })
-
-    it('surfaces an intent failure instead of a dead form', async () => {
-      server.use(
-        http.post('*/api/bookings/payment-intent', () => new HttpResponse(null, { status: 500 })),
-      )
-      const user = userEvent.setup()
-      renderBooking()
-      await screen.findByRole('heading', { name: 'Select Date — August 2026' })
-      await user.click(screen.getByRole('button', { name: SLOT_DAY_LABEL }))
-      await user.click(await screen.findByRole('button', { name: slotLabel(FIRST_SLOT) }))
-
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Something went wrong. Please try again.',
-      )
-      expect(screen.queryByTestId('payment-element')).not.toBeInTheDocument()
-    })
-
-    it('prices the button from the chosen duration', async () => {
+  describe('price', () => {
+    it('prices the button from the chosen duration, matching booking-service PricingPolicy', async () => {
       const user = userEvent.setup()
       await reachPayment(user)
-      expect(screen.getByRole('button', { name: /confirm & pay \$39/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /confirm & pay ₹500/i })).toBeInTheDocument()
 
       await user.click(screen.getByRole('button', { name: /60 minutes/ }))
-      expect(await screen.findByRole('button', { name: /confirm & pay \$69/i })).toBeInTheDocument()
+      expect(await screen.findByRole('button', { name: /confirm & pay ₹900/i })).toBeInTheDocument()
+    })
+
+    it('shows an unavailable banner when no Razorpay key is configured', async () => {
+      vi.stubEnv('VITE_RAZORPAY_KEY_ID', '')
+      const user = userEvent.setup()
+      renderBooking()
+      await screen.findByRole('heading', { name: 'Select Date — August 2026' })
+      await user.click(screen.getByRole('button', { name: SLOT_DAY_LABEL }))
+      await user.click(await screen.findByRole('button', { name: slotLabel(FIRST_SLOT) }))
+
+      expect(
+        await screen.findByText(/payments are unavailable.*VITE_RAZORPAY_KEY_ID/i),
+      ).toBeInTheDocument()
+      vi.stubEnv('VITE_RAZORPAY_KEY_ID', 'rzp_test_booking_page')
     })
   })
 
   describe('successful payment', () => {
-    it('confirms with Stripe, then creates the booking with the real selection', async () => {
+    it('creates the booking with the real selection, then opens Razorpay Checkout', async () => {
       const bookings = captureBookings()
       const user = userEvent.setup()
       await reachPayment(user)
 
       await user.click(payButton())
 
-      await screen.findByText('Booking Confirmed!')
-      expect(stripeDouble.confirmPayment).toHaveBeenCalledTimes(1)
-      expect(stripeDouble.confirmPayment.mock.calls[0][0]).toMatchObject({
-        redirect: 'if_required',
+      await waitFor(() =>
+        expect(bookings).toEqual([
+          { advisorId: 'advisor-1', sessionDateTime: FIRST_SLOT, durationMinutes: 30 },
+        ]),
+      )
+      await waitFor(() => expect(razorpayDouble.open).toHaveBeenCalledTimes(1))
+      expect(razorpayDouble.lastOptions).toMatchObject({
+        key: 'rzp_test_booking_page',
+        order_id: MOCK_RAZORPAY_ORDER_ID,
       })
-      expect(bookings).toEqual([
-        {
-          advisorId: 'advisor-1',
-          sessionDateTime: FIRST_SLOT,
-          durationMinutes: 30,
-          // Taken off the confirmed intent, not invented client-side.
-          stripePaymentMethodId: 'pm_test_1',
-        },
-      ])
     })
 
     it('carries the 60-minute selection through to the booking', async () => {
@@ -437,116 +396,93 @@ describe('BookingPage', () => {
 
       await user.click(payButton())
 
-      await screen.findByText('Booking Confirmed!')
-      expect(bookings[0].durationMinutes).toBe(60)
+      await waitFor(() => expect(bookings[0]?.durationMinutes).toBe(60))
     })
 
-    it('falls back to the intent id when no payment method is expanded', async () => {
-      stripeDouble.confirmPayment.mockResolvedValue({
-        paymentIntent: { id: 'pi_only', status: 'succeeded' },
-      })
-      const bookings = captureBookings()
-      const user = userEvent.setup()
-      await reachPayment(user)
-
-      await user.click(payButton())
-
-      await screen.findByText('Booking Confirmed!')
-      // The backend marks `stripePaymentMethodId` @NotBlank — a confirmed
-      // charge must never be lost to an empty field.
-      expect(bookings[0].stripePaymentMethodId).toBe('pi_only')
-    })
-
-    it('confirms the modal with the booking the server returned', async () => {
+    it('confirms the modal once Checkout reports a successful payment', async () => {
       captureBookings()
       const user = userEvent.setup()
       await reachPayment(user)
 
       await user.click(payButton())
+      await waitFor(() => expect(razorpayDouble.open).toHaveBeenCalledTimes(1))
+      completeCheckoutPayment()
 
       const dialog = await screen.findByRole('dialog')
       expect(within(dialog).getByText('Booking Confirmed!')).toBeInTheDocument()
       expect(dialog).toHaveTextContent('Your 30-minute video session with maya_chen')
-      expect(
-        within(dialog).getByText(format(new Date(FIRST_SLOT), "EEEE, MMMM d, yyyy · h:mm a")),
-      ).toBeInTheDocument()
       // Nothing from the old fixed-March confirmation copy.
       expect(dialog.textContent ?? '').not.toMatch(/March/)
     })
 
-    it('disables the button and shows the loading state while confirming', async () => {
-      let release: ((value: unknown) => void) | undefined
-      stripeDouble.confirmPayment.mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            release = resolve
-          }),
+    it('disables the button and shows the loading state while the booking is being created', async () => {
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      server.use(
+        http.post('*/api/bookings', async () => {
+          await gate
+          return HttpResponse.json(
+            { booking: MOCK_CREATED_BOOKING, razorpayOrderId: MOCK_RAZORPAY_ORDER_ID },
+            { status: 201 },
+          )
+        }),
       )
-      captureBookings()
       const user = userEvent.setup()
       await reachPayment(user)
 
       const button = payButton()
       await user.click(button)
 
-      // `Button` disables itself while `loading`, which is what stops a
-      // double-click charging the card twice.
       await waitFor(() => expect(button).toBeDisabled())
       expect(button.querySelector('.animate-spin')).not.toBeNull()
 
-      release!({ paymentIntent: { id: 'pi_test_1', payment_method: 'pm_test_1' } })
+      release()
+      await waitFor(() => expect(razorpayDouble.open).toHaveBeenCalledTimes(1))
+    })
+  })
+
+  describe('dismissed payment', () => {
+    it('lets the user retry without creating a second booking', async () => {
+      const bookings = captureBookings()
+      const user = userEvent.setup()
+      await reachPayment(user)
+
+      await user.click(payButton())
+      await waitFor(() => expect(razorpayDouble.open).toHaveBeenCalledTimes(1))
+      dismissCheckout()
+
+      expect(
+        await screen.findByText(/payment was not completed.*slot is still held/i),
+      ).toBeInTheDocument()
+      const retryButton = screen.getByRole('button', { name: /retry payment/i })
+
+      await user.click(retryButton)
+
+      // Reopens Checkout for the same order — no second POST /bookings.
+      await waitFor(() => expect(razorpayDouble.open).toHaveBeenCalledTimes(2))
+      expect(bookings).toHaveLength(1)
+    })
+
+    it('confirms the booking if the retried payment succeeds', async () => {
+      captureBookings()
+      const user = userEvent.setup()
+      await reachPayment(user)
+
+      await user.click(payButton())
+      await waitFor(() => expect(razorpayDouble.open).toHaveBeenCalledTimes(1))
+      dismissCheckout()
+      await user.click(await screen.findByRole('button', { name: /retry payment/i }))
+      await waitFor(() => expect(razorpayDouble.open).toHaveBeenCalledTimes(2))
+      completeCheckoutPayment()
+
       expect(await screen.findByText('Booking Confirmed!')).toBeInTheDocument()
     })
   })
 
-  describe('failed payment', () => {
-    it('shows Stripe’s own message and creates no booking', async () => {
-      stripeDouble.confirmPayment.mockResolvedValue({
-        error: { type: 'card_error', code: 'card_declined', message: 'Your card was declined.' },
-      })
-      const bookings = captureBookings()
-      const user = userEvent.setup()
-      await reachPayment(user)
-
-      await user.click(payButton())
-
-      expect(await screen.findByRole('alert')).toHaveTextContent('Your card was declined.')
-      expect(bookings).toEqual([])
-      expect(screen.queryByText('Booking Confirmed!')).not.toBeInTheDocument()
-      // Still recoverable — the form stays up so the user can try another card.
-      expect(screen.getByTestId('payment-element')).toBeInTheDocument()
-      await waitFor(() => expect(payButton()).toBeEnabled())
-    })
-
-    it('falls back to generic copy when Stripe supplies no message', async () => {
-      stripeDouble.confirmPayment.mockResolvedValue({ error: { type: 'api_error' } })
-      const bookings = captureBookings()
-      const user = userEvent.setup()
-      await reachPayment(user)
-
-      await user.click(payButton())
-
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Something went wrong. Please try again.',
-      )
-      expect(bookings).toEqual([])
-    })
-
-    it('reports a confirmation that returns neither an error nor an intent', async () => {
-      stripeDouble.confirmPayment.mockResolvedValue({})
-      const bookings = captureBookings()
-      const user = userEvent.setup()
-      await reachPayment(user)
-
-      await user.click(payButton())
-
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Payment could not be confirmed. Please try again.',
-      )
-      expect(bookings).toEqual([])
-    })
-
-    it('reports a booking that fails after the charge succeeded', async () => {
+  describe('failed booking creation', () => {
+    it('surfaces the backend message and never opens Checkout', async () => {
       server.use(
         http.post('*/api/bookings', () =>
           HttpResponse.json({ message: 'That slot was just taken.' }, { status: 409 }),
@@ -559,15 +495,21 @@ describe('BookingPage', () => {
 
       expect(await screen.findByRole('alert')).toHaveTextContent('That slot was just taken.')
       expect(screen.queryByText('Booking Confirmed!')).not.toBeInTheDocument()
+      expect(razorpayDouble.open).not.toHaveBeenCalled()
     })
 
-    it('keeps the button disabled until Stripe has initialised', async () => {
-      stripeDouble.ready = false
+    it('surfaces a Checkout script load failure without losing the booking', async () => {
+      captureBookings()
+      razorpayDouble.load.mockRejectedValueOnce(new Error('Could not load the Razorpay Checkout script.'))
       const user = userEvent.setup()
       await reachPayment(user)
 
-      expect(payButton()).toBeDisabled()
-      expect(stripeDouble.confirmPayment).not.toHaveBeenCalled()
+      await user.click(payButton())
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Could not load the Razorpay Checkout script.',
+      )
+      expect(razorpayDouble.open).not.toHaveBeenCalled()
     })
   })
 })

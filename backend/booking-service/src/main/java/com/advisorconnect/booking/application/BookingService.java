@@ -6,7 +6,7 @@ import com.advisorconnect.booking.adapter.out.messaging.BookingEventPublisher;
 import com.advisorconnect.booking.domain.model.Booking;
 import com.advisorconnect.booking.domain.model.BookingConflictException;
 import com.advisorconnect.booking.domain.model.BookingStatus;
-import com.advisorconnect.booking.domain.model.PaymentIntentResult;
+import com.advisorconnect.booking.domain.model.PaymentOrderResult;
 import com.advisorconnect.booking.domain.model.PricingPolicy;
 import com.advisorconnect.booking.domain.model.UserEmailCache;
 import com.advisorconnect.booking.domain.port.out.BookingRepository;
@@ -34,8 +34,8 @@ public class BookingService {
     private static final LocalTime DAY_END = LocalTime.of(17, 0);
     private static final int SLOT_MINUTES = 30;
 
-    /** Every session is priced and charged in US dollars; there is no multi-currency product. */
-    private static final String CURRENCY = "usd";
+    /** Every session is priced and charged in Indian rupees; there is no multi-currency product. */
+    private static final String CURRENCY = "INR";
 
     private final BookingRepository bookingRepository;
     private final BookingEventPublisher eventPublisher;
@@ -48,9 +48,8 @@ public class BookingService {
      *
      * <p>This used to invent {@code "pi_placeholder_" + randomUUID()} and save the booking as
      * {@code CONFIRMED} — so an advisor's calendar filled with sessions nobody had paid for, and
-     * the stored payment intent id matched nothing in Stripe. A booking is now only confirmed by
-     * {@link #confirmBooking(String)}, driven by Stripe's {@code payment_intent.succeeded}
-     * webhook.
+     * the stored order id matched nothing in Razorpay. A booking is now only confirmed by
+     * {@link #confirmBooking(String)}, driven by Razorpay's {@code payment.captured} webhook.
      *
      * <p>The gateway is called before the row is written: if the charge cannot even be reserved,
      * nothing is persisted and no {@code booking.created} event is emitted.
@@ -61,7 +60,7 @@ public class BookingService {
      * creating and charging a booking for the same advisor/time slot.
      *
      * @throws BookingConflictException if the advisor already holds an overlapping booking
-     * @return the persisted booking plus the client secret the browser needs to confirm payment
+     * @return the persisted booking plus the Razorpay order id the browser needs to open Checkout
      */
     public BookingResponse createBooking(CreateBookingRequest req, UUID userId) {
         // Request validation already rejects anything other than 30/60; this is the
@@ -77,7 +76,8 @@ public class BookingService {
         }
 
         // The booking id does not exist yet — it is generated on save — so reconciliation
-        // metadata carries the participants and the slot instead. Stripe requires string values.
+        // metadata carries the participants and the slot instead. Razorpay requires string values
+        // for order notes.
         Map<String, String> metadata = Map.of(
                 "userId", userId.toString(),
                 "advisorId", req.getAdvisorId().toString(),
@@ -85,7 +85,7 @@ public class BookingService {
                 "durationMinutes", String.valueOf(req.getDurationMinutes())
         );
 
-        PaymentIntentResult intent = paymentGateway.createPaymentIntent(amount, CURRENCY, metadata);
+        PaymentOrderResult order = paymentGateway.createOrder(amount, CURRENCY, metadata);
 
         Booking booking = Booking.builder()
                 .userId(userId)
@@ -95,7 +95,7 @@ public class BookingService {
                 .durationMinutes(req.getDurationMinutes())
                 .amountCharged(amount)
                 .status(BookingStatus.PENDING)
-                .stripePaymentIntentId(intent.paymentIntentId())
+                .razorpayOrderId(order.orderId())
                 .build();
 
         booking = bookingRepository.save(booking);
@@ -103,24 +103,24 @@ public class BookingService {
         eventPublisher.publishBookingCreated(
                 booking.getId(), userId, req.getAdvisorId(), lookupEmail(userId));
 
-        log.info("Booking created (pending payment): id={} userId={} advisorId={} paymentIntentId={}",
-                booking.getId(), userId, req.getAdvisorId(), intent.paymentIntentId());
-        return new BookingResponse(booking, intent.clientSecret());
+        log.info("Booking created (pending payment): id={} userId={} advisorId={} razorpayOrderId={}",
+                booking.getId(), userId, req.getAdvisorId(), order.orderId());
+        return new BookingResponse(booking, order.orderId());
     }
 
     /**
-     * Marks a booking paid. Called only from the Stripe webhook, which is the single source of
+     * Marks a booking paid. Called only from the Razorpay webhook, which is the single source of
      * truth for whether money actually moved.
      *
-     * <p>Idempotent and forgiving by design: Stripe redelivers webhooks until it gets a 2xx, and
-     * an intent the service has never heard of (a payment created outside this flow, or a booking
+     * <p>Idempotent and forgiving by design: Razorpay redelivers webhooks until it gets a 2xx, and
+     * an order the service has never heard of (a payment created outside this flow, or a booking
      * already deleted) must not make the endpoint fail forever. Both cases are logged and
      * swallowed so the delivery is acknowledged rather than retried indefinitely.
      */
-    public void confirmBooking(String paymentIntentId) {
-        Optional<Booking> found = bookingRepository.findByStripePaymentIntentId(paymentIntentId);
+    public void confirmBooking(String razorpayOrderId) {
+        Optional<Booking> found = bookingRepository.findByRazorpayOrderId(razorpayOrderId);
         if (found.isEmpty()) {
-            log.warn("payment_intent.succeeded for unknown paymentIntentId={} — ignoring", paymentIntentId);
+            log.warn("payment.captured for unknown razorpayOrderId={} — ignoring", razorpayOrderId);
             return;
         }
         Booking booking = found.get();
@@ -131,21 +131,21 @@ public class BookingService {
         }
         booking.setStatus(BookingStatus.CONFIRMED);
         bookingRepository.save(booking);
-        log.info("Booking confirmed by Stripe webhook: id={} paymentIntentId={}",
-                booking.getId(), paymentIntentId);
+        log.info("Booking confirmed by Razorpay webhook: id={} razorpayOrderId={}",
+                booking.getId(), razorpayOrderId);
     }
 
     /**
-     * Marks a booking's payment as failed. Same idempotency and unknown-intent handling as
+     * Marks a booking's payment as failed. Same idempotency and unknown-order handling as
      * {@link #confirmBooking(String)}.
      *
      * <p>{@link BookingStatus#FAILED} rather than {@code CANCELLED}: the user did not withdraw,
      * their card did.
      */
-    public void failBooking(String paymentIntentId) {
-        Optional<Booking> found = bookingRepository.findByStripePaymentIntentId(paymentIntentId);
+    public void failBooking(String razorpayOrderId) {
+        Optional<Booking> found = bookingRepository.findByRazorpayOrderId(razorpayOrderId);
         if (found.isEmpty()) {
-            log.warn("payment_intent.payment_failed for unknown paymentIntentId={} — ignoring", paymentIntentId);
+            log.warn("payment.failed for unknown razorpayOrderId={} — ignoring", razorpayOrderId);
             return;
         }
         Booking booking = found.get();
@@ -156,14 +156,14 @@ public class BookingService {
         }
         booking.setStatus(BookingStatus.FAILED);
         bookingRepository.save(booking);
-        log.info("Booking payment failed: id={} paymentIntentId={}", booking.getId(), paymentIntentId);
+        log.info("Booking payment failed: id={} razorpayOrderId={}", booking.getId(), razorpayOrderId);
     }
 
     /**
      * Fetches a booking, enforcing that the caller is entitled to see it.
      *
      * <p>There used to be no check here at all: any authenticated user could read any
-     * booking by id, including its {@code stripePaymentIntentId}.
+     * booking by id, including its {@code razorpayOrderId}.
      *
      * <p>Visibility is deliberately wider than "the user who booked it" — the advisor on the
      * session needs to see their own bookings, and admins need to see all of them.

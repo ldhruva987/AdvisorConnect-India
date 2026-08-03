@@ -67,13 +67,13 @@ class BookingControllerTest {
                         .content(createBody(duration)))
                 .andExpect(status().isCreated())
                 // The booking is now nested under "booking": the endpoint returns a
-                // BookingResponse so it can also hand back the Stripe client secret.
+                // BookingResponse so it can also hand back the Razorpay order id.
                 .andExpect(jsonPath("$.booking.durationMinutes").value(duration));
     }
 
     @Test
-    @DisplayName("the create response carries the Stripe client secret alongside a PENDING booking")
-    void createResponseCarriesTheClientSecret() throws Exception {
+    @DisplayName("the create response carries the Razorpay order id alongside a PENDING booking")
+    void createResponseCarriesTheOrderId() throws Exception {
         given(bookingService.createBooking(any(), eq(UUID.fromString(USER_ID))))
                 .willReturn(sampleResponse(30));
 
@@ -83,9 +83,9 @@ class BookingControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createBody(30)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.clientSecret").value("pi_test_secret_abc"))
+                .andExpect(jsonPath("$.razorpayOrderId").value("order_test"))
                 .andExpect(jsonPath("$.booking.status").value("PENDING"))
-                .andExpect(jsonPath("$.booking.stripePaymentIntentId").value("pi_test"));
+                .andExpect(jsonPath("$.booking.razorpayOrderId").value("order_test"));
     }
 
     @Test
@@ -169,16 +169,14 @@ class BookingControllerTest {
                 {
                   "advisorId": "%s",
                   "sessionDateTime": "2026-08-01T10:00:00Z",
-                  "durationMinutes": %d,
-                  "stripePaymentMethodId": "pm_test_123"
+                  "durationMinutes": %d
                 }
                 """.formatted(ADVISOR_ID, durationMinutes);
     }
 
-    /** What POST /bookings now returns: a freshly created, still-unpaid booking plus its secret. */
+    /** What POST /bookings now returns: a freshly created, still-unpaid booking plus its order id. */
     private static BookingResponse sampleResponse(int durationMinutes) {
-        return new BookingResponse(sampleBooking(durationMinutes, BookingStatus.PENDING),
-                "pi_test_secret_abc");
+        return new BookingResponse(sampleBooking(durationMinutes, BookingStatus.PENDING), "order_test");
     }
 
     private static Booking sampleBooking(int durationMinutes) {
@@ -194,9 +192,9 @@ class BookingControllerTest {
                 .sessionDateTime(start)
                 .sessionEndDateTime(start.plus(durationMinutes, ChronoUnit.MINUTES))
                 .durationMinutes(durationMinutes)
-                .amountCharged(new BigDecimal("50.00"))
+                .amountCharged(new BigDecimal("500.00"))
                 .status(status)
-                .stripePaymentIntentId("pi_test")
+                .razorpayOrderId("order_test")
                 .build();
     }
 }

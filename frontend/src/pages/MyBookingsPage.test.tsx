@@ -21,7 +21,7 @@ function bookingAt(offsetDays: number, overrides: Partial<Booking> = {}): Bookin
     advisorUsername: 'maya_chen',
     sessionDate: new Date(Date.now() + offsetDays * DAY_MS).toISOString(),
     durationMinutes: 30,
-    amountCharged: 4500,
+    amountCharged: 500,
     status: 'CONFIRMED',
     createdAt: new Date(Date.now() - 10 * DAY_MS).toISOString(),
     ...overrides,
@@ -152,15 +152,15 @@ describe('MyBookingsPage', () => {
 
     it('renders duration, status and the charge in major units', async () => {
       serveBookings([
-        bookingAt(3, { durationMinutes: 60, amountCharged: 9000, status: 'PENDING' }),
+        bookingAt(3, { durationMinutes: 60, amountCharged: 900, status: 'PENDING' }),
       ])
       render(<MyBookingsPage />)
 
       await screen.findByText('maya_chen')
       expect(screen.getByText(/60 min/)).toBeInTheDocument()
       expect(screen.getByText('Pending')).toBeInTheDocument()
-      // `amountCharged` is cents; $90.00, not $9,000.
-      expect(screen.getByText('$90.00')).toBeInTheDocument()
+      // `amountCharged` is already a major-unit rupee decimal, not paise — ₹900.00, not ₹90,000.
+      expect(screen.getByText('₹900.00')).toBeInTheDocument()
     })
   })
 

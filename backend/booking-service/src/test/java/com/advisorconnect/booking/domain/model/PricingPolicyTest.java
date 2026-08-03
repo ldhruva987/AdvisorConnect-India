@@ -11,21 +11,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Pricing was an inline ternary that charged $90 for every duration that was not exactly 30.
+ * Pricing was an inline ternary that charged ₹900 for every duration that was not exactly 30.
  * These tests pin the two real products and require everything else to fail loudly.
  */
 class PricingPolicyTest {
 
     @Test
-    @DisplayName("a 30-minute session costs $50.00")
-    void thirtyMinutesCostsFifty() {
-        assertThat(PricingPolicy.priceFor(30)).isEqualByComparingTo(new BigDecimal("50.00"));
+    @DisplayName("a 30-minute session costs ₹500.00")
+    void thirtyMinutesCostsFiveHundred() {
+        assertThat(PricingPolicy.priceFor(30)).isEqualByComparingTo(new BigDecimal("500.00"));
     }
 
     @Test
-    @DisplayName("a 60-minute session costs $90.00")
-    void sixtyMinutesCostsNinety() {
-        assertThat(PricingPolicy.priceFor(60)).isEqualByComparingTo(new BigDecimal("90.00"));
+    @DisplayName("a 60-minute session costs ₹900.00")
+    void sixtyMinutesCostsNineHundred() {
+        assertThat(PricingPolicy.priceFor(60)).isEqualByComparingTo(new BigDecimal("900.00"));
     }
 
     @Test

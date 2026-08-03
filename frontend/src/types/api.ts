@@ -73,42 +73,24 @@ export interface SubmitReviewRequest {
   text: string
 }
 
-/** `POST /bookings/availability` is a GET; this is `POST /bookings/payment-intent`. */
-export interface CreatePaymentIntentRequest {
-  advisorId: string
-  durationMinutes: SessionDuration
-  /** ISO-8601 instant for the chosen slot, as returned by the availability API. */
-  slot: string
-}
-
-/** `POST /bookings/payment-intent` — pending backend Phase 4. */
-export interface PaymentIntentResponse {
-  clientSecret: string
-  /** Minor units (cents), as Stripe reports them. */
-  amount: number
-}
-
 /** `POST /bookings` request body. */
 export interface CreateBookingRequest {
   advisorId: string
   /** ISO-8601 instant for the start of the session. */
   sessionDateTime: string
   durationMinutes: SessionDuration
-  stripePaymentMethodId?: string
 }
 
 /**
- * `POST /bookings` response — deliberately a union, because this endpoint's
- * shape is mid-migration.
- *
- * TODAY the backend returns a bare `Booking`. Once backend Phase 4 (real
- * Stripe PaymentIntents) lands it returns `{ booking, clientSecret }` so the
- * client can confirm the payment. Modelling both here means the switchover is
- * absorbed entirely by `normalizeCreateBookingResponse` in
- * `features/booking/hooks/useCreateBooking.ts` — no caller changes, and no
- * window where the frontend is broken against one shape or the other.
+ * `POST /bookings` response — REAL today, mirrors booking-service's `BookingResponse`
+ * field-for-field. `razorpayOrderId` is not a short-lived secret the way Stripe's client secret
+ * was: it is Razorpay's own order id, safe to both persist server-side and hand to the browser so
+ * Checkout can open with it.
  */
-export type CreateBookingResponse = Booking | { booking: Booking; clientSecret: string }
+export interface CreateBookingResponse {
+  booking: Booking
+  razorpayOrderId: string
+}
 
 /** `GET /chats` — pending backend Phase 8. */
 export interface ConversationDto {

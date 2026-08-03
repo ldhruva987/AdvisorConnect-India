@@ -41,16 +41,21 @@ spec:
                 secretKeyRef:
                   name: ac-app-secrets
                   key: POSTGRES_PASSWORD
-            - name: STRIPE_SECRET_KEY
+            - name: RAZORPAY_KEY_ID
               valueFrom:
                 secretKeyRef:
                   name: ac-app-secrets
-                  key: STRIPE_SECRET_KEY
-            - name: STRIPE_WEBHOOK_SECRET
+                  key: RAZORPAY_KEY_ID
+            - name: RAZORPAY_KEY_SECRET
               valueFrom:
                 secretKeyRef:
                   name: ac-app-secrets
-                  key: STRIPE_WEBHOOK_SECRET
+                  key: RAZORPAY_KEY_SECRET
+            - name: RAZORPAY_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ac-app-secrets
+                  key: RAZORPAY_WEBHOOK_SECRET
           resources:
             requests:
               cpu: 150m

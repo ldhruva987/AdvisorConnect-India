@@ -48,7 +48,7 @@ public class Booking {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amountCharged;
 
-    private String stripePaymentIntentId;
+    private String razorpayOrderId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

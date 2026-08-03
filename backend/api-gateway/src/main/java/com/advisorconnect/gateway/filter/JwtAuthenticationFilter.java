@@ -51,11 +51,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             new PublicRoute(HttpMethod.POST, "/api/auth/refresh"),
             new PublicRoute(HttpMethod.GET,  "/api/advisors"),
             new PublicRoute(HttpMethod.GET,  "/api/advisors/{username}"),
-            // Stripe's webhook callback. Server-to-server, so there is never a JWT to check;
-            // booking-service authenticates it by verifying the Stripe-Signature HMAC instead.
+            // Razorpay's webhook callback. Server-to-server, so there is never a JWT to check;
+            // booking-service authenticates it by verifying the X-Razorpay-Signature HMAC instead.
             // Without this entry the gateway would 401 every delivery and no booking would ever
             // leave PENDING.
-            new PublicRoute(HttpMethod.POST, "/api/bookings/webhooks/stripe"),
+            new PublicRoute(HttpMethod.POST, "/api/bookings/webhooks/razorpay"),
             // The chat WebSocket handshake. The browser WebSocket constructor cannot set an
             // Authorization header, so the token travels as a ?token= query parameter instead
             // (see frontend buildChatSocketUrl and chat-service's JwtHandshakeInterceptor).
@@ -63,7 +63,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             // handshake was 401'd here before it reached chat-service's own independent JWT
             // verification — chat never connected through the gateway at all. chat-service is the
             // one that actually authenticates the caller for this route, exactly as booking-service
-            // does for the Stripe webhook above.
+            // does for the Razorpay webhook above.
             new PublicRoute(HttpMethod.GET,  "/ws/**")
     );
 

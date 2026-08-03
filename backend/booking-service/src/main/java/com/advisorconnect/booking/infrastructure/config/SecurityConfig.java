@@ -38,12 +38,12 @@ public class SecurityConfig {
                         // before deciding to sign up.
                         .requestMatchers(HttpMethod.GET, "/bookings/availability/{advisorId}").permitAll()
 
-                        // Stripe calls this server-to-server and will never present a JWT or the
+                        // Razorpay calls this server-to-server and will never present a JWT or the
                         // gateway's X-User-* headers, so it cannot be an authenticated route.
-                        // It is not unauthenticated in practice: StripeWebhookController rejects
-                        // anything whose Stripe-Signature HMAC does not verify against the
+                        // It is not unauthenticated in practice: RazorpayWebhookController rejects
+                        // anything whose X-Razorpay-Signature HMAC does not verify against the
                         // endpoint's webhook secret, and does nothing before that check passes.
-                        .requestMatchers(HttpMethod.POST, "/bookings/webhooks/stripe").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/bookings/webhooks/razorpay").permitAll()
 
                         .anyRequest().authenticated()
                 )

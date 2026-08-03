@@ -49,11 +49,11 @@
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
     </dependency>
-    <!-- Stripe SDK -->
+    <!-- Razorpay SDK -->
     <dependency>
-      <groupId>com.stripe</groupId>
-      <artifactId>stripe-java</artifactId>
-      <version>24.3.0</version>
+      <groupId>com.razorpay</groupId>
+      <artifactId>razorpay-java</artifactId>
+      <version>1.4.8</version>
     </dependency>
 
     <!-- Integration tests (*IT.java, run by Failsafe under `mvn verify`) exercise the real

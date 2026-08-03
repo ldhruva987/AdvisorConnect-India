@@ -85,6 +85,18 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    @DisplayName("POST /api/bookings/webhooks/razorpay is public — Razorpay never presents a JWT; "
+            + "booking-service authenticates the call itself via the X-Razorpay-Signature HMAC")
+    void razorpayWebhookIsPublic() {
+        var exchange = post("/api/bookings/webhooks/razorpay");
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(chain.wasCalled()).isTrue();
+        assertNoIdentityHeadersInjected();
+    }
+
+    @Test
     @DisplayName("GET /ws/chat is public — the browser cannot set an Authorization header on a "
             + "WebSocket handshake, so chat-service verifies the ?token= param itself")
     void chatWebSocketHandshakeIsPublic() {

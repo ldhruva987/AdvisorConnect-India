@@ -5,15 +5,16 @@ import java.math.BigDecimal;
 /**
  * The single source of truth for what a session costs.
  *
- * <p>Pricing used to live as an inline ternary in {@code BookingService}
- * ({@code durationMinutes == 30 ? "50.00" : "90.00"}), which silently charged $90 for
- * <em>any</em> duration that was not exactly 30 — including the 31..59 minute range that
- * {@code CreateBookingRequest}'s old {@code @Min(30) @Max(60)} validation let through.
+ * <p>Priced in Indian rupees for this market rather than as an FX conversion of the US build's
+ * $50/$90: at current rates that would land around ₹4,000/₹7,500, far above what India's
+ * online-counseling and coaching market actually charges per session (closer to ₹500–1,500).
+ * ₹500/₹900 tracks that local rate instead of preserving revenue-per-session parity with the US
+ * build.
  *
- * <p>Only 30- and 60-minute sessions exist as products; every other duration is a bug
- * somewhere upstream and is rejected loudly rather than priced by accident. Request
- * validation rejects unsupported durations first — this class is the defence-in-depth
- * layer behind it, and covers callers that bypass the web layer.
+ * <p>Only 30- and 60-minute sessions exist as products; every other duration is a bug somewhere
+ * upstream and is rejected loudly rather than priced by accident. Request validation rejects
+ * unsupported durations first — this class is the defence-in-depth layer behind it, and covers
+ * callers that bypass the web layer.
  */
 public final class PricingPolicy {
 
@@ -28,8 +29,8 @@ public final class PricingPolicy {
      */
     public static BigDecimal priceFor(int durationMinutes) {
         return switch (durationMinutes) {
-            case 30 -> new BigDecimal("50.00");
-            case 60 -> new BigDecimal("90.00");
+            case 30 -> new BigDecimal("500.00");
+            case 60 -> new BigDecimal("900.00");
             default -> throw new IllegalArgumentException(
                     "Unsupported session duration: " + durationMinutes
                             + " minutes. Only 30 or 60 minute sessions are supported.");

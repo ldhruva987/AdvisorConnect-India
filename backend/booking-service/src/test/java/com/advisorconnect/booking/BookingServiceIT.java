@@ -2,10 +2,10 @@ package com.advisorconnect.booking;
 
 import com.advisorconnect.booking.domain.model.Booking;
 import com.advisorconnect.booking.domain.model.BookingStatus;
-import com.advisorconnect.booking.domain.model.PaymentIntentResult;
+import com.advisorconnect.booking.domain.model.PaymentOrderResult;
 import com.advisorconnect.booking.domain.port.out.BookingRepository;
 import com.advisorconnect.booking.domain.port.out.PaymentGateway;
-import com.advisorconnect.booking.testsupport.StripeSignatures;
+import com.advisorconnect.booking.testsupport.RazorpaySignatures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -77,7 +77,7 @@ class BookingServiceIT {
         // starts empty, so the schema is created from the entities for the test run.
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
         registry.add("spring.kafka.bootstrap-servers", KAFKA::getBootstrapServers);
-        registry.add("stripe.webhook-secret", () -> WEBHOOK_SECRET);
+        registry.add("razorpay.webhook-secret", () -> WEBHOOK_SECRET);
     }
 
     @Autowired
@@ -91,23 +91,20 @@ class BookingServiceIT {
 
     /**
      * The one collaborator that is stubbed. Everything else here is real — real Postgres, real
-     * Kafka, real Spring Security, real Stripe signature verification on the webhook leg — but
-     * creating a PaymentIntent would mean an outbound call to Stripe's live API with a real
-     * secret key, which no test may do. The stub hands back deterministic, unique ids so the
-     * webhook test can reference the exact intent a booking was created against.
+     * Kafka, real Spring Security, real Razorpay signature verification on the webhook leg — but
+     * creating an order would mean an outbound call to Razorpay's live API with a real key
+     * secret, which no test may do. The stub hands back deterministic, unique ids so the
+     * webhook test can reference the exact order a booking was created against.
      */
     @MockBean
     private PaymentGateway paymentGateway;
 
-    private final AtomicInteger intentCounter = new AtomicInteger();
+    private final AtomicInteger orderCounter = new AtomicInteger();
 
     @BeforeEach
     void stubPaymentGateway() {
-        given(paymentGateway.createPaymentIntent(any(), any(), any()))
-                .willAnswer(invocation -> {
-                    String id = "pi_it_" + intentCounter.incrementAndGet();
-                    return new PaymentIntentResult(id, id + "_secret_test");
-                });
+        given(paymentGateway.createOrder(any(), any(), any()))
+                .willAnswer(invocation -> new PaymentOrderResult("order_it_" + orderCounter.incrementAndGet()));
     }
 
     // ---------------------------------------------------------- the double-booking regression
@@ -173,11 +170,11 @@ class BookingServiceIT {
         Booking persisted = bookingRepository.findById(bookingId).orElseThrow();
         assertThat(persisted.getSessionEndDateTime())
                 .isEqualTo(persisted.getSessionDateTime().plus(60, ChronoUnit.MINUTES));
-        assertThat(persisted.getAmountCharged()).isEqualByComparingTo(new BigDecimal("90.00"));
+        assertThat(persisted.getAmountCharged()).isEqualByComparingTo(new BigDecimal("900.00"));
         // A new booking is unpaid. It used to be written straight to CONFIRMED, which meant every
         // booking looked paid whether or not a card was ever charged.
         assertThat(persisted.getStatus()).isEqualTo(BookingStatus.PENDING);
-        assertThat(persisted.getStripePaymentIntentId()).doesNotContain("placeholder");
+        assertThat(persisted.getRazorpayOrderId()).doesNotContain("placeholder");
     }
 
     // ------------------------------------------------------------------------ GET /bookings/me
@@ -253,34 +250,33 @@ class BookingServiceIT {
     // ------------------------------------------------------ payment lifecycle, end to end
 
     @Test
-    @DisplayName("a genuinely signed payment_intent.succeeded moves the booking PENDING → CONFIRMED")
-    void stripeWebhookConfirmsTheBooking() throws Exception {
+    @DisplayName("a genuinely signed payment.captured moves the booking PENDING → CONFIRMED")
+    void razorpayWebhookConfirmsTheBooking() throws Exception {
         UUID advisorId = UUID.randomUUID();
         UUID clientId = UUID.randomUUID();
 
         var created = createBooking(clientId, advisorId, iso(10, 0), 30)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.booking.status").value("PENDING"))
-                .andExpect(jsonPath("$.clientSecret").isNotEmpty());
+                .andExpect(jsonPath("$.razorpayOrderId").isNotEmpty());
 
         UUID bookingId = bookingIdOf(created);
-        String paymentIntentId = paymentIntentIdOf(created);
+        String orderId = orderIdOf(created);
 
         assertThat(bookingRepository.findById(bookingId).orElseThrow().getStatus())
                 .isEqualTo(BookingStatus.PENDING);
 
-        postSignedWebhook(stripeEvent("payment_intent.succeeded", paymentIntentId))
+        postSignedWebhook(razorpayEvent("payment.captured", orderId))
                 .andExpect(status().isOk());
 
         assertThat(bookingRepository.findById(bookingId).orElseThrow().getStatus())
-                .as("Stripe's webhook is the only thing that may confirm a booking")
+                .as("Razorpay's webhook is the only thing that may confirm a booking")
                 .isEqualTo(BookingStatus.CONFIRMED);
     }
 
     @Test
-    @DisplayName("a genuinely signed payment_intent.payment_failed moves the booking to FAILED "
-            + "and frees the slot")
-    void stripeWebhookFailsTheBooking() throws Exception {
+    @DisplayName("a genuinely signed payment.failed moves the booking to FAILED and frees the slot")
+    void razorpayWebhookFailsTheBooking() throws Exception {
         UUID advisorId = UUID.randomUUID();
         UUID clientId = UUID.randomUUID();
 
@@ -292,7 +288,7 @@ class BookingServiceIT {
                 .as("an unpaid booking still holds its slot while checkout is in flight")
                 .doesNotContain(iso(11, 0), iso(11, 30));
 
-        postSignedWebhook(stripeEvent("payment_intent.payment_failed", paymentIntentIdOf(created)))
+        postSignedWebhook(razorpayEvent("payment.failed", orderIdOf(created)))
                 .andExpect(status().isOk());
 
         assertThat(bookingRepository.findById(bookingId).orElseThrow().getStatus())
@@ -312,10 +308,10 @@ class BookingServiceIT {
                 .andExpect(status().isCreated());
         UUID bookingId = bookingIdOf(created);
 
-        String payload = stripeEvent("payment_intent.succeeded", paymentIntentIdOf(created));
-        mockMvc.perform(post("/bookings/webhooks/stripe")
-                        .header("Stripe-Signature",
-                                StripeSignatures.sign(payload, "whsec_an_attackers_guess"))
+        String payload = razorpayEvent("payment.captured", orderIdOf(created));
+        mockMvc.perform(post("/bookings/webhooks/razorpay")
+                        .header("X-Razorpay-Signature",
+                                RazorpaySignatures.sign(payload, "whsec_an_attackers_guess"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isBadRequest());
@@ -328,34 +324,30 @@ class BookingServiceIT {
 
     private org.springframework.test.web.servlet.ResultActions postSignedWebhook(String payload)
             throws Exception {
-        return mockMvc.perform(post("/bookings/webhooks/stripe")
-                // No X-User-* headers: Stripe never sends them. That this reaches the controller
-                // at all is the permitAll() rule in SecurityConfig doing its job.
-                .header("Stripe-Signature", StripeSignatures.sign(payload, WEBHOOK_SECRET))
+        return mockMvc.perform(post("/bookings/webhooks/razorpay")
+                // No X-User-* headers: Razorpay never sends them. That this reaches the
+                // controller at all is the permitAll() rule in SecurityConfig doing its job.
+                .header("X-Razorpay-Signature", RazorpaySignatures.sign(payload, WEBHOOK_SECRET))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(payload));
     }
 
-    private static String stripeEvent(String type, String paymentIntentId) {
+    private static String razorpayEvent(String type, String orderId) {
         return """
                 {
-                  "id": "evt_it_%s",
-                  "object": "event",
-                  "api_version": "2023-10-16",
-                  "created": 1700000000,
-                  "livemode": false,
-                  "pending_webhooks": 1,
-                  "type": "%s",
-                  "data": {
-                    "object": {
-                      "id": "%s",
-                      "object": "payment_intent",
-                      "amount": 5000,
-                      "currency": "usd"
+                  "entity": "event",
+                  "event": "%s",
+                  "payload": {
+                    "payment": {
+                      "entity": {
+                        "id": "pay_it_%s",
+                        "order_id": "%s",
+                        "status": "captured"
+                      }
                     }
                   }
                 }
-                """.formatted(paymentIntentId, type, paymentIntentId);
+                """.formatted(type, orderId, orderId);
     }
 
     private UUID bookingIdOf(org.springframework.test.web.servlet.ResultActions created)
@@ -363,15 +355,15 @@ class BookingServiceIT {
         return UUID.fromString(createResponse(created).get("booking").get("id").asText());
     }
 
-    private String paymentIntentIdOf(org.springframework.test.web.servlet.ResultActions created)
+    private String orderIdOf(org.springframework.test.web.servlet.ResultActions created)
             throws Exception {
-        return createResponse(created).get("booking").get("stripePaymentIntentId").asText();
+        return createResponse(created).get("booking").get("razorpayOrderId").asText();
     }
 
     /**
      * POST /bookings returns a {@code BookingResponse}, so the booking sits under
-     * {@code "booking"} rather than at the top level as it did before the client secret had to
-     * be returned alongside it.
+     * {@code "booking"} rather than at the top level as it did before the order id had to be
+     * returned alongside it.
      */
     private com.fasterxml.jackson.databind.JsonNode createResponse(
             org.springframework.test.web.servlet.ResultActions created) throws Exception {
@@ -384,8 +376,7 @@ class BookingServiceIT {
                 {
                   "advisorId": "%s",
                   "sessionDateTime": "%s",
-                  "durationMinutes": %d,
-                  "stripePaymentMethodId": "pm_test_123"
+                  "durationMinutes": %d
                 }
                 """.formatted(advisorId, sessionDateTime, durationMinutes);
 

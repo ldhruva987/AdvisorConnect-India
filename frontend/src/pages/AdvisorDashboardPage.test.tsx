@@ -34,17 +34,17 @@ function bookingAt(offsetDays: number, overrides: Partial<Booking> = {}): Bookin
     advisorUsername: 'maya_chen',
     sessionDate,
     durationMinutes: 30,
-    amountCharged: 4500,
+    amountCharged: 500,
     status: 'CONFIRMED',
     createdAt: new Date(Date.now() - DAY_MS).toISOString(),
     ...overrides,
   }
 }
 
-const SOONER_SESSION = bookingAt(2, { advisorUsername: 'maya_chen', amountCharged: 4500 })
+const SOONER_SESSION = bookingAt(2, { advisorUsername: 'maya_chen', amountCharged: 500 })
 const LATER_SESSION = bookingAt(5, {
   advisorUsername: 'sam_okafor',
-  amountCharged: 9000,
+  amountCharged: 900,
   durationMinutes: 60,
   status: 'PENDING',
 })
@@ -271,10 +271,10 @@ describe('AdvisorDashboardPage', () => {
       const later = screen.getByText(LATER_SESSION.advisorUsername)
       expect(soonest.compareDocumentPosition(later)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
-      // 4500 minor units → $45.00, not a raw "4500".
-      expect(screen.getByText('$45.00')).toBeInTheDocument()
-      expect(screen.getByText('$90.00')).toBeInTheDocument()
-      expect(screen.queryByText('4500')).not.toBeInTheDocument()
+      // amountCharged is already a major-unit rupee decimal, not paise — ₹500.00, not a raw "500".
+      expect(screen.getByText('₹500.00')).toBeInTheDocument()
+      expect(screen.getByText('₹900.00')).toBeInTheDocument()
+      expect(screen.queryByText('500')).not.toBeInTheDocument()
       expect(screen.getByText(/60 min/)).toBeInTheDocument()
     })
 

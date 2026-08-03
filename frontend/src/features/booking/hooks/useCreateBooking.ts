@@ -1,37 +1,18 @@
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import apiClient from '@/lib/axios'
-import type { Booking } from '@/types'
 import type { CreateBookingRequest, CreateBookingResponse } from '@/types/api'
 
-export interface CreatedBooking {
-  booking: Booking
-  /**
-   * Present only once backend Phase 4 lands. `null` against today's backend,
-   * which creates the booking without a real PaymentIntent.
-   */
-  clientSecret: string | null
-}
-
 /**
- * THE one place that knows `POST /bookings` is mid-migration.
+ * `POST /bookings`. REAL backend endpoint.
  *
- * Today the endpoint returns a bare `Booking`. After backend Phase 4 it
- * returns `{ booking, clientSecret }`. Rather than guess a date and break on
- * either side of it, this accepts both and normalises. When the backend
- * settles, deleting the `'booking' in raw` branch is the entire change — no
- * caller, page, or test outside this file is coupled to the wire shape.
+ * Returns the freshly created (still-unpaid) booking together with the Razorpay order id the
+ * page needs to open Checkout. There is no other shape this endpoint has ever returned — unlike
+ * Stripe's client secret, a Razorpay order id is not a short-lived value that only exists once a
+ * separate "create the payment intent" call has happened first.
  */
-export function normalizeCreateBookingResponse(raw: CreateBookingResponse): CreatedBooking {
-  if (raw && typeof raw === 'object' && 'booking' in raw) {
-    return { booking: raw.booking, clientSecret: raw.clientSecret ?? null }
-  }
-  return { booking: raw, clientSecret: null }
-}
-
-/** `POST /bookings`. Real backend endpoint (response shape pending Phase 4). */
-export async function postBooking(body: CreateBookingRequest): Promise<CreatedBooking> {
+export async function postBooking(body: CreateBookingRequest): Promise<CreateBookingResponse> {
   const { data } = await apiClient.post<CreateBookingResponse>('/bookings', body)
-  return normalizeCreateBookingResponse(data)
+  return data
 }
 
 /**
@@ -41,7 +22,11 @@ export async function postBooking(body: CreateBookingRequest): Promise<CreatedBo
  * slot just taken must stop being offered, otherwise a user who backs out to
  * the calendar sees the slot they just booked still shown as free.
  */
-export function useCreateBooking(): UseMutationResult<CreatedBooking, Error, CreateBookingRequest> {
+export function useCreateBooking(): UseMutationResult<
+  CreateBookingResponse,
+  Error,
+  CreateBookingRequest
+> {
   const queryClient = useQueryClient()
 
   return useMutation({

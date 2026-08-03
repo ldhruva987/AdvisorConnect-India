@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 
 /** Format currency */
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount)
 }
 
 /** Generate initials from username */

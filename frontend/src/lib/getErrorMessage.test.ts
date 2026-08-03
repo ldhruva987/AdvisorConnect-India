@@ -98,7 +98,9 @@ describe('getErrorMessage', () => {
   })
 
   it('uses the message of a plain non-Axios Error', () => {
-    expect(getErrorMessage(new Error('Stripe.js failed to load'))).toBe('Stripe.js failed to load')
+    expect(getErrorMessage(new Error('Razorpay Checkout failed to load'))).toBe(
+      'Razorpay Checkout failed to load',
+    )
   })
 
   it('falls back to generic for an Error with an empty message', () => {

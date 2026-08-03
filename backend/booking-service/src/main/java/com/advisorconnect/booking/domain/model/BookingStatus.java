@@ -1,7 +1,7 @@
 package com.advisorconnect.booking.domain.model;
 
 public enum BookingStatus {
-    /** Created, payment intent open, not yet paid. Stripe's webhook decides what happens next. */
+    /** Created, order open, not yet paid. Razorpay's webhook decides what happens next. */
     PENDING,
     CONFIRMED,
     COMPLETED,

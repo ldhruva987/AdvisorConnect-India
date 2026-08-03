@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   addMonths,
@@ -13,8 +13,6 @@ import {
   startOfDay,
   startOfMonth,
 } from 'date-fns'
-import { loadStripe } from '@stripe/stripe-js'
-import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
 import { ArrowLeft, CheckCircle, ChevronLeft, ChevronRight, Clock, Lock } from 'lucide-react'
 import { Avatar } from '@/shared/components/ui/Avatar'
 import { Badge } from '@/shared/components/ui/Badge'
@@ -27,27 +25,18 @@ import { Navbar } from '@/shared/components/layout/Navbar'
 import { useAdvisors } from '@/features/explore/hooks/useAdvisors'
 import { useAvailability } from '@/features/booking/hooks/useAvailability'
 import { useCreateBooking } from '@/features/booking/hooks/useCreateBooking'
-import { useCreatePaymentIntent } from '@/features/booking/hooks/useCreatePaymentIntent'
 import { getErrorMessage } from '@/lib/getErrorMessage'
+import { loadRazorpayCheckout, openRazorpayCheckout } from '@/lib/razorpay'
 import type { Booking, SessionDuration } from '@/types'
+import type { CreateBookingResponse } from '@/types/api'
 
 const DAY_HEADERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
+/** Mirrors booking-service's PricingPolicy — ₹500 for 30 minutes, ₹900 for 60. */
 const DURATION_OPTIONS: { duration: SessionDuration; price: number; label: string; popular?: boolean }[] = [
-  { duration: 30, price: 39, label: '30 minutes' },
-  { duration: 60, price: 69, label: '60 minutes', popular: true },
+  { duration: 30, price: 500, label: '30 minutes' },
+  { duration: 60, price: 900, label: '60 minutes', popular: true },
 ]
-
-/**
- * Loaded once at module scope, per Stripe's guidance — `loadStripe` injects a
- * script tag, and calling it per render would re-run that on every re-render.
- *
- * Guarded on the key being present rather than called unconditionally:
- * `loadStripe(undefined)` throws at import time, which would take down the
- * whole route (and every test importing it) on a machine without an env file.
- */
-const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined
-const stripePromise = STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : null
 
 /** An ISO instant from the availability API, as a local wall-clock time. */
 function formatSlotTime(iso: string): string {
@@ -64,153 +53,114 @@ interface PaymentProps {
   durationMinutes: SessionDuration
   /** ISO instant of the chosen slot. */
   slot: string
-  /** Display price for the button copy. Not server-driven yet — see the plan. */
+  /** Display price for the button copy. Server-driven: mirrors PricingPolicy exactly. */
   price: number
   onBooked: (booking: Booking) => void
 }
 
 /**
- * The `<PaymentElement>` half, which must live inside `<Elements>` so
- * `useStripe`/`useElements` resolve.
+ * Creates the booking first, then opens Razorpay Checkout for it.
  *
- * Confirms the payment first and only then creates the booking: a booking row
- * that exists without a successful charge is the failure mode worth avoiding,
- * and it is the one ordering the backend's PENDING → CONFIRMED webhook flow
- * expects.
+ * This is the order the backend actually works in — `POST /bookings` creates the order and the
+ * still-unpaid `PENDING` booking together in one call, and `getAvailableSlots` already treats a
+ * `PENDING` booking as holding its slot precisely so this is safe. The old Stripe-era version of
+ * this page did the opposite (confirm payment, *then* create the booking) against a
+ * `POST /bookings/payment-intent` endpoint the backend never actually implemented — every real
+ * booking attempt against the real backend would have 404'd before a card was ever charged.
+ *
+ * Because the booking/order already exist once Checkout opens, a dismissed modal does not need a
+ * fresh booking: `retryPayment` reopens Checkout against the same order id.
  */
-function PaymentForm({ advisorId, durationMinutes, slot, price, onBooked }: PaymentProps) {
-  const stripe = useStripe()
-  const elements = useElements()
+function PaymentSection({ advisorId, durationMinutes, slot, price, onBooked }: PaymentProps) {
+  // Read per-render rather than hoisted to module scope: Vite inlines this to a literal at
+  // build time (so there is no real per-render cost in production), and reading it fresh is
+  // what lets a test toggle the "misconfigured" case without reloading the module.
+  const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID as string | undefined
   const createBooking = useCreateBooking()
-  const [confirming, setConfirming] = useState(false)
+  const [pendingOrder, setPendingOrder] = useState<CreateBookingResponse | null>(null)
+  const [awaitingPayment, setAwaitingPayment] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
 
-  const handleConfirmPay = async () => {
-    if (!stripe || !elements) return
-
-    setPaymentError(null)
-    setConfirming(true)
+  const openCheckoutFor = async (created: CreateBookingResponse) => {
     try {
-      const result = await stripe.confirmPayment({
-        elements,
-        confirmParams: { return_url: window.location.href },
-        // Keeps the common card case on this page. Only payment methods that
-        // genuinely require a redirect (iDEAL, some 3DS flows) leave it.
-        redirect: 'if_required',
-      })
+      await loadRazorpayCheckout()
+    } catch (err) {
+      setPaymentError(getErrorMessage(err))
+      return
+    }
 
-      if (result.error) {
-        /**
-         * Stripe errors are plain objects, not `Error` instances, so
-         * `getErrorMessage` would fall through to its generic copy and discard
-         * the one genuinely useful sentence. Stripe's own `.message` is
-         * already user-facing, so it wins; `getErrorMessage` is the fallback.
-         */
-        setPaymentError(result.error.message ?? getErrorMessage(result.error))
-        return
-      }
+    setAwaitingPayment(true)
+    openRazorpayCheckout({
+      key: razorpayKeyId!,
+      order_id: created.razorpayOrderId,
+      name: 'AdvisorConnect',
+      description: `${durationMinutes}-minute session`,
+      handler: () => {
+        setAwaitingPayment(false)
+        onBooked(created.booking)
+      },
+      modal: {
+        ondismiss: () => {
+          setAwaitingPayment(false)
+          setPaymentError(
+            'Payment was not completed. Your slot is still held — you can try again.',
+          )
+        },
+      },
+    })
+  }
 
-      const intent = result.paymentIntent
-      if (!intent) {
-        setPaymentError('Payment could not be confirmed. Please try again.')
-        return
-      }
+  const handlePay = async () => {
+    setPaymentError(null)
 
-      /**
-       * The backend's `CreateBookingRequest.stripePaymentMethodId` is
-       * `@NotBlank`. `payment_method` is a bare id string when the intent
-       * isn't expanded; the intent id is the last-resort fallback so a
-       * confirmed payment is never lost to a missing field.
-       */
-      const paymentMethodId =
-        typeof intent.payment_method === 'string'
-          ? intent.payment_method
-          : (intent.payment_method?.id ?? intent.id)
+    // A dismissed modal leaves the booking/order already created — reopening Checkout against
+    // the same order id is correct, and a second POST /bookings would double-book the slot.
+    if (pendingOrder) {
+      await openCheckoutFor(pendingOrder)
+      return
+    }
 
+    try {
       const created = await createBooking.mutateAsync({
         advisorId,
         sessionDateTime: slot,
         durationMinutes,
-        stripePaymentMethodId: paymentMethodId,
       })
-      onBooked(created.booking)
+      setPendingOrder(created)
+      await openCheckoutFor(created)
     } catch (err) {
-      // Booking creation failed *after* a successful charge — an Axios error,
-      // so the shared formatter is the right one here.
       setPaymentError(getErrorMessage(err))
-    } finally {
-      setConfirming(false)
     }
   }
 
+  if (!razorpayKeyId) {
+    return (
+      <ErrorBanner message="Payments are unavailable: VITE_RAZORPAY_KEY_ID is not configured." />
+    )
+  }
+
+  const busy = createBooking.isPending || awaitingPayment
+
   return (
     <>
-      <PaymentElement />
-
-      {paymentError && <ErrorBanner className="mt-4" message={paymentError} />}
+      {paymentError && <ErrorBanner className="mb-4" message={paymentError} />}
 
       <Button
-        className="mt-5"
+        className="mt-1"
         variant="primary"
         size="lg"
         fullWidth
-        loading={confirming}
-        disabled={!stripe || !elements}
-        onClick={() => void handleConfirmPay()}
+        loading={busy}
+        onClick={() => void handlePay()}
       >
         <Lock className="w-4 h-4" />
-        Confirm &amp; Pay ${price}
+        {pendingOrder ? 'Retry Payment' : 'Confirm & Pay'} ₹{price}
       </Button>
       <p className="text-xs text-ink-400 text-center mt-3 flex items-center justify-center gap-1">
         <Lock className="w-3 h-3" />
-        Secured by 256-bit SSL encryption. Your card is never stored.
+        Secured by Razorpay. Your card is never stored by AdvisorConnect.
       </p>
     </>
-  )
-}
-
-/**
- * Owns the PaymentIntent, then hands its `clientSecret` to `<Elements>`.
- *
- * The intent is created here rather than inside `<Elements>` because
- * `options.clientSecret` is read when the Elements group is constructed and
- * cannot be introduced afterwards — a child cannot supply the secret its own
- * provider needed. Re-selecting a duration or slot mints a fresh intent (the
- * amount or time changed), and `key={clientSecret}` forces a clean remount so
- * no stale card state is confirmed against the new intent.
- */
-function PaymentSection(props: PaymentProps) {
-  const { advisorId, durationMinutes, slot } = props
-  const { mutate, data, isPending, error } = useCreatePaymentIntent()
-
-  useEffect(() => {
-    mutate({ advisorId, durationMinutes, slot })
-  }, [mutate, advisorId, durationMinutes, slot])
-
-  if (!STRIPE_PUBLISHABLE_KEY) {
-    return (
-      <ErrorBanner message="Payments are unavailable: VITE_STRIPE_PUBLISHABLE_KEY is not configured." />
-    )
-  }
-
-  if (error) {
-    return <ErrorBanner message={getErrorMessage(error)} />
-  }
-
-  if (isPending || !data) {
-    return (
-      <div className="space-y-3" role="status" aria-label="Preparing secure payment">
-        <Skeleton className="h-10 w-full rounded-lg" />
-        <Skeleton className="h-10 w-full rounded-lg" />
-        <Skeleton className="h-12 w-full rounded-lg" />
-      </div>
-    )
-  }
-
-  return (
-    <Elements key={data.clientSecret} stripe={stripePromise} options={{ clientSecret: data.clientSecret }}>
-      <PaymentForm {...props} />
-    </Elements>
   )
 }
 
@@ -355,7 +305,7 @@ export function BookingPage() {
                     POPULAR
                   </Badge>
                 )}
-                <p className="font-heading font-medium text-2xl text-ink-900">${opt.price}</p>
+                <p className="font-heading font-medium text-2xl text-ink-900">₹{opt.price}</p>
                 <p className="text-sm text-ink-500">{opt.label}</p>
               </button>
             ))}
@@ -478,15 +428,15 @@ export function BookingPage() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between text-ink-700">
               <span>Video session ({selectedDurationData.duration} min)</span>
-              <span className="font-semibold">${selectedDurationData.price}</span>
+              <span className="font-semibold">₹{selectedDurationData.price}</span>
             </div>
             <div className="flex justify-between text-ink-500">
               <span>Platform fee</span>
-              <span className="text-pine-600 font-medium">$0 free</span>
+              <span className="text-pine-600 font-medium">₹0 free</span>
             </div>
             <div className="border-t border-ink-100 pt-2 flex justify-between font-heading font-medium text-ink-900 text-base">
               <span>Total</span>
-              <span>${selectedDurationData.price}</span>
+              <span>₹{selectedDurationData.price}</span>
             </div>
           </div>
         </div>

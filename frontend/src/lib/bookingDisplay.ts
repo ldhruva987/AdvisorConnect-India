@@ -26,9 +26,14 @@ export function isUpcoming(booking: Booking, now: number): boolean {
   return startsAt >= now && booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED'
 }
 
-/** `Booking.amountCharged` is minor units (cents), per the booking contract. */
-export function formatBookingAmount(minorUnits: number): string {
-  return formatCurrency(minorUnits / 100)
+/**
+ * `Booking.amountCharged` is a plain major-unit decimal (e.g. {@code 500.00} rupees) — it's
+ * booking-service's `BigDecimal` column serialised as-is, never scaled to paise. This used to
+ * divide by 100 as if the field were minor units, which would have displayed a booking actually
+ * charged ₹500 as ₹5.
+ */
+export function formatBookingAmount(amount: number): string {
+  return formatCurrency(amount)
 }
 
 /** Chronological, soonest first. */

@@ -15,10 +15,10 @@ public interface BookingRepository {
     List<Booking> findByUserId(UUID userId);
 
     /**
-     * Looks a booking up by its Stripe PaymentIntent id — the only handle a webhook carries.
-     * Ids are unique per intent, and one intent backs exactly one booking.
+     * Looks a booking up by its Razorpay order id — the only handle a webhook carries.
+     * Ids are unique per order, and one order backs exactly one booking.
      */
-    Optional<Booking> findByStripePaymentIntentId(String stripePaymentIntentId);
+    Optional<Booking> findByRazorpayOrderId(String razorpayOrderId);
 
     /**
      * Bookings in {@code status} whose session has already ended, used by the completion sweep.

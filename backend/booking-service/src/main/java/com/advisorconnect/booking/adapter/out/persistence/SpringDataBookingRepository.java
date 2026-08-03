@@ -12,6 +12,6 @@ import java.util.UUID;
 interface SpringDataBookingRepository extends JpaRepository<Booking, UUID> {
     List<Booking> findByAdvisorIdAndSessionDateTimeBetween(UUID advisorId, Instant from, Instant to);
     List<Booking> findByUserId(UUID userId);
-    Optional<Booking> findByStripePaymentIntentId(String stripePaymentIntentId);
+    Optional<Booking> findByRazorpayOrderId(String razorpayOrderId);
     List<Booking> findByStatusAndSessionEndDateTimeBefore(BookingStatus status, Instant before);
 }

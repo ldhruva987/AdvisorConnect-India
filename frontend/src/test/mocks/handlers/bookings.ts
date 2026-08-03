@@ -3,11 +3,9 @@ import type { Booking } from '@/types'
 import type { CreateBookingRequest } from '@/types/api'
 
 /**
- * Availability / payment intent / booking creation / my bookings.
+ * Availability / booking creation / my bookings.
  *
- * `GET /bookings/availability/{advisorId}` and `POST /bookings` are real today;
- * `POST /bookings/payment-intent` and `GET /bookings/me` arrive with backend
- * Phases 4 and 3.
+ * All three are real backend endpoints today.
  *
  * Note the availability contract is a bare `string[]` of *available* ISO slot
  * instants — there is no per-slot `taken` flag anywhere in the backend, so
@@ -30,7 +28,7 @@ export const MOCK_BOOKINGS: Booking[] = [
     advisorUsername: 'maya_chen',
     sessionDate: '2026-08-14T09:00:00Z',
     durationMinutes: 30,
-    amountCharged: 4500,
+    amountCharged: 500,
     status: 'CONFIRMED',
     createdAt: '2026-08-01T08:00:00Z',
   },
@@ -40,23 +38,26 @@ export const MOCK_BOOKINGS: Booking[] = [
     advisorUsername: 'sam_okafor',
     sessionDate: '2026-07-02T15:00:00Z',
     durationMinutes: 60,
-    amountCharged: 9000,
+    amountCharged: 900,
     status: 'COMPLETED',
     createdAt: '2026-06-28T11:20:00Z',
   },
 ]
 
-/** The booking `POST /bookings` echoes back, in today's bare-`Booking` shape. */
+/** The booking `POST /bookings` echoes back, nested under `booking` in the real response shape. */
 export const MOCK_CREATED_BOOKING: Booking = {
   id: 'booking-new',
   advisorId: 'advisor-1',
   advisorUsername: 'maya_chen',
   sessionDate: '2026-08-14T09:00:00Z',
   durationMinutes: 30,
-  amountCharged: 4500,
+  amountCharged: 500,
   status: 'PENDING',
   createdAt: '2026-08-01T12:00:00Z',
 }
+
+/** The Razorpay order id `POST /bookings` returns alongside `MOCK_CREATED_BOOKING`. */
+export const MOCK_RAZORPAY_ORDER_ID = 'order_test'
 
 export const bookingHandlers = [
   http.get('*/api/bookings/availability/:advisorId', ({ request }) => {
@@ -66,24 +67,18 @@ export const bookingHandlers = [
 
   http.get('*/api/bookings/me', () => HttpResponse.json(MOCK_BOOKINGS)),
 
-  http.post('*/api/bookings/payment-intent', async ({ request }) => {
-    const body = (await request.json()) as { durationMinutes: number }
-    return HttpResponse.json({
-      clientSecret: 'pi_test_secret_123',
-      // 30 min = $45.00, 60 min = $90.00, in cents. Mirrors backend pricing.
-      amount: body.durationMinutes === 60 ? 9000 : 4500,
-    })
-  }),
-
   http.post('*/api/bookings', async ({ request }) => {
     const body = (await request.json()) as CreateBookingRequest
     return HttpResponse.json(
       {
-        ...MOCK_CREATED_BOOKING,
-        advisorId: body.advisorId,
-        sessionDate: body.sessionDateTime,
-        durationMinutes: body.durationMinutes,
-      } satisfies Booking,
+        booking: {
+          ...MOCK_CREATED_BOOKING,
+          advisorId: body.advisorId,
+          sessionDate: body.sessionDateTime,
+          durationMinutes: body.durationMinutes,
+        },
+        razorpayOrderId: MOCK_RAZORPAY_ORDER_ID,
+      },
       { status: 201 },
     )
   }),
